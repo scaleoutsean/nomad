@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	testing "github.com/mitchellh/go-testing-interface"
+	"github.com/hashicorp/nomad/client/lib/cgutil"
+	"github.com/opencontainers/runc/libcontainer/cgroups/fs2"
 
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
@@ -24,6 +25,7 @@ import (
 	"github.com/hashicorp/nomad/plugins/base"
 	"github.com/hashicorp/nomad/plugins/drivers"
 	"github.com/hashicorp/nomad/plugins/shared/hclspec"
+	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,6 +36,7 @@ type DriverHarness struct {
 	t      testing.T
 	logger hclog.Logger
 	impl   drivers.DriverPlugin
+	cgroup string
 }
 
 func (h *DriverHarness) Impl() drivers.DriverPlugin {
@@ -53,12 +56,10 @@ func NewDriverHarness(t testing.T, d drivers.DriverPlugin) *DriverHarness {
 	)
 
 	raw, err := client.Dispense(base.PluginTypeDriver)
-	if err != nil {
-		t.Fatalf("err dispensing plugin: %v", err)
-	}
+	require.NoError(t, err, "failed to dispense plugin")
 
 	dClient := raw.(drivers.DriverPlugin)
-	h := &DriverHarness{
+	return &DriverHarness{
 		client:       client,
 		server:       server,
 		DriverPlugin: dClient,
@@ -66,13 +67,30 @@ func NewDriverHarness(t testing.T, d drivers.DriverPlugin) *DriverHarness {
 		t:            t,
 		impl:         d,
 	}
+}
 
-	return h
+// setCgroup creates a v2 cgroup for the task, as if a Client were initialized
+// and managing the cgroup as it normally would.
+//
+// Uses testing.slice as a parent.
+func (h *DriverHarness) setCgroup(allocID, task string) {
+	if cgutil.UseV2 {
+		h.cgroup = filepath.Join(cgutil.CgroupRoot, "testing.slice", cgutil.CgroupScope(allocID, task))
+		_ = fs2.CreateCgroupPath(h.cgroup, nil)
+	}
 }
 
 func (h *DriverHarness) Kill() {
-	h.client.Close()
+	_ = h.client.Close()
 	h.server.Stop()
+	h.cleanupCgroup()
+}
+
+func (h *DriverHarness) cleanupCgroup() {
+	if cgutil.UseV2 {
+		mgr, _ := fs2.NewManager(nil, h.cgroup, false)
+		_ = mgr.Destroy()
+	}
 }
 
 // tinyChroot is useful for testing, where we do not use anything other than
@@ -139,6 +157,7 @@ func (h *DriverHarness) MkAllocDir(t *drivers.TaskConfig, enableLogs bool) func(
 
 	// Create the mock allocation
 	alloc := mock.Alloc()
+	alloc.ID = t.AllocID
 	if t.Resources != nil {
 		alloc.AllocatedResources.Tasks[task.Name] = t.Resources.NomadResources
 	}
@@ -156,6 +175,9 @@ func (h *DriverHarness) MkAllocDir(t *drivers.TaskConfig, enableLogs bool) func(
 			}
 		}
 	}
+
+	// set cgroup
+	h.setCgroup(alloc.ID, task.Name)
 
 	//logmon
 	if enableLogs {
@@ -189,6 +211,7 @@ func (h *DriverHarness) MkAllocDir(t *drivers.TaskConfig, enableLogs bool) func(
 	return func() {
 		h.client.Close()
 		allocDir.Destroy()
+		h.cleanupCgroup()
 	}
 }
 
