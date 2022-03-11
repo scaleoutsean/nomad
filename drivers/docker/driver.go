@@ -20,6 +20,7 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
 	plugin "github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/nomad/client/lib/cgutil"
 	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/drivers/docker/docklog"
 	"github.com/hashicorp/nomad/drivers/shared/capabilities"
@@ -350,9 +351,12 @@ CREATE:
 			container.ID, "container_state", container.State.String())
 	}
 
-	if containerCfg.HostConfig.CPUSet == "" && cfg.Resources.LinuxResources.CpusetCgroupPath != "" {
-		if err := setCPUSetCgroup(cfg.Resources.LinuxResources.CpusetCgroupPath, container.State.Pid); err != nil {
-			return nil, nil, fmt.Errorf("failed to set the cpuset cgroup for container: %v", err)
+	if !cgutil.UseV2 {
+		// TODO compat - can remove when major distros drop cgroups.v1
+		if containerCfg.HostConfig.CPUSet == "" && cfg.Resources.LinuxResources.CpusetCgroupPath != "" {
+			if err := setCPUSetCgroup(cfg.Resources.LinuxResources.CpusetCgroupPath, container.State.Pid); err != nil {
+				return nil, nil, fmt.Errorf("failed to set the cpuset cgroup for container: %v", err)
+			}
 		}
 	}
 

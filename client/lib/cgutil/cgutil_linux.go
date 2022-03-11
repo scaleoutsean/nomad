@@ -1,3 +1,5 @@
+//go:build linux
+
 package cgutil
 
 import (
@@ -11,11 +13,18 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// UseV2 indicates whether only cgroups.v2 is enabled. If cgroups.v2 is not
+// enabled or is running in hybrid mode with cgroups.v1, Nomad will make use of
+// cgroups.v1
+//
+// This is a read-only value.
+var UseV2 = cgroups.IsCgroup2UnifiedMode()
+
 // GetCgroupParent returns the mount point under the root cgroup in which Nomad
 // will create cgroups. If parent is not set, an appropriate name for the version
 // of cgroups will be used.
 func GetCgroupParent(parent string) string {
-	if cgroups.IsCgroup2UnifiedMode() {
+	if UseV2 {
 		return v2GetParent(parent)
 	}
 	return getParentV1(parent)
@@ -23,14 +32,14 @@ func GetCgroupParent(parent string) string {
 
 // CreateCPUSetManager creates a V1 or V2 CpusetManager depending on system configuration.
 func CreateCPUSetManager(parent string, logger hclog.Logger) CpusetManager {
-	if cgroups.IsCgroup2UnifiedMode() {
+	if UseV2 {
 		return NewCpusetManagerV2(v2GetParent(parent), logger.Named("cpuset.v2"))
 	}
 	return NewCpusetManagerV1(getParentV1(parent), logger.Named("cpuset.v1"))
 }
 
 func GetCPUsFromCgroup(group string) ([]uint16, error) {
-	if cgroups.IsCgroup2UnifiedMode() {
+	if UseV2 {
 		return v2GetCPUsFromCgroup(v2GetParent(group))
 	}
 	return getCPUsFromCgroupV1(getParentV1(group))
@@ -41,14 +50,14 @@ func CgroupID(allocID, task string) string {
 		panic("empty alloc or task")
 	}
 
-	if cgroups.IsCgroup2UnifiedMode() {
+	if UseV2 {
 		return fmt.Sprintf("%s.%s.scope", allocID, task)
 	}
 	return fmt.Sprintf("%s.%s", task, allocID)
 }
 
 func ConfigureBasicCgroups(cgroup string, config *lcc.Config) error {
-	if cgroups.IsCgroup2UnifiedMode() {
+	if UseV2 {
 		panic("do not call me for cgroups.v2")
 	}
 

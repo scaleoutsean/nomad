@@ -1,3 +1,5 @@
+//go:build linux
+
 package cgutil
 
 import (
@@ -25,6 +27,8 @@ const (
 )
 
 // NewCpusetManagerV1 creates a  CpusetManager compatible with cgroups.v1
+//
+// TODO compat - can remove when major distros drop cgroups.v1
 func NewCpusetManagerV1(cgroupParent string, logger hclog.Logger) CpusetManager {
 	if cgroupParent == "" {
 		cgroupParent = DefaultCgroupV1Parent
