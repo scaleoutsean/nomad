@@ -73,7 +73,7 @@ func NewCpusetManagerV2(parent string, logger hclog.Logger) CpusetManager {
 }
 
 func (c *cpusetManagerV2) Init(cores []uint16) error {
-	c.logger.Debug("initializing with", "cores", cores)
+	c.logger.Info("initializing with", "cores", cores)
 	if err := c.ensureParent(); err != nil {
 		c.logger.Error("failed to init cpuset manager", "err", err)
 		return err

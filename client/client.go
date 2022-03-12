@@ -657,11 +657,17 @@ func (c *Client) init() error {
 
 	// Ensure cgroups are created on linux platform
 	if runtime.GOOS == "linux" && c.cpusetManager != nil {
-		err := c.cpusetManager.Init(c.config.ReservableCores)
-		if err != nil {
+		// use the client configuration for reservable_cores if set
+		cores := c.config.ReservableCores
+		if len(cores) == 0 {
+			// otherwise lookup the effective cores from the parent cgroup
+			cores, _ = cgutil.GetCPUsFromCgroup(c.config.CgroupParent)
+		}
+		cpuErr := c.cpusetManager.Init(cores)
+		if cpuErr != nil {
 			// if the client cannot initialize the cgroup then reserved cores will not be reported and the cpuset manager
 			// will be disabled. this is common when running in dev mode under a non-root user for example
-			c.logger.Warn("could not initialize cpuset cgroup subsystem, cpuset management disabled", "error", err)
+			c.logger.Warn("could not initialize cpuset cgroup subsystem, cpuset management disabled", "error", cpuErr)
 			c.cpusetManager = new(cgutil.NoopCpusetManager)
 		}
 	}

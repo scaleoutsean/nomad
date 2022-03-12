@@ -359,8 +359,6 @@ func (d *Driver) buildFingerprint() *drivers.Fingerprint {
 		return fp
 	}
 
-	fmt.Println("SH exec mount:", mount)
-
 	if mount == "" {
 		fp.Health = drivers.HealthStateUnhealthy
 		fp.HealthDescription = drivers.CgroupMountEmpty
