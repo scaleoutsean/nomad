@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	lcc "github.com/opencontainers/runc/libcontainer/configs"
-	"golang.org/x/sys/unix"
 )
 
 // UseV2 indicates whether only cgroups.v2 is enabled. If cgroups.v2 is not
@@ -56,14 +55,17 @@ func CgroupID(allocID, task string) string {
 	return fmt.Sprintf("%s.%s", task, allocID)
 }
 
+// ConfigureBasicCgroups will initialize cgroups for v1.
+//
+// Not used in cgroups.v2
 func ConfigureBasicCgroups(cgroup string, config *lcc.Config) error {
 	if UseV2 {
-		panic("do not call me for cgroups.v2")
+		return nil
 	}
 
 	// In V1 we must setup the freezer cgroup ourselves
 	subsystem := "freezer"
-	path, err := getCgroupPathHelper(subsystem, filepath.Join(DefaultCgroupV1Parent, cgroup))
+	path, err := getCgroupPathHelperV1(subsystem, filepath.Join(DefaultCgroupV1Parent, cgroup))
 	if err != nil {
 		return fmt.Errorf("failed to find %s cgroup mountpoint: %v", subsystem, err)
 	}
@@ -74,94 +76,6 @@ func ConfigureBasicCgroups(cgroup string, config *lcc.Config) error {
 		subsystem: path,
 	}
 	return nil
-}
-
-func getCpusetSubsystemSettings(parent string) (cpus, mems string, err error) {
-	if cpus, err = cgroups.ReadFile(parent, "cpuset.cpus"); err != nil {
-		return
-	}
-	if mems, err = cgroups.ReadFile(parent, "cpuset.mems"); err != nil {
-		return
-	}
-	return cpus, mems, nil
-}
-
-// cpusetEnsureParent makes sure that the parent directories of current
-// are created and populated with the proper cpus and mems files copied
-// from their respective parent. It does that recursively, starting from
-// the top of the cpuset hierarchy (i.e. cpuset cgroup mount point).
-//
-// todo: v1 only?
-func cpusetEnsureParent(current string) error {
-	var st unix.Statfs_t
-
-	parent := filepath.Dir(current)
-	err := unix.Statfs(parent, &st)
-	if err == nil && st.Type != unix.CGROUP_SUPER_MAGIC {
-		return nil
-	}
-	// Treat non-existing directory as cgroupfs as it will be created,
-	// and the root cpuset directory obviously exists.
-	if err != nil && err != unix.ENOENT {
-		return &os.PathError{Op: "statfs", Path: parent, Err: err}
-	}
-
-	if err := cpusetEnsureParent(parent); err != nil {
-		return err
-	}
-	if err := os.Mkdir(current, 0755); err != nil && !os.IsExist(err) {
-		return err
-	}
-	return cpusetCopyIfNeeded(current, parent)
-}
-
-// cpusetCopyIfNeeded copies the cpuset.cpus and cpuset.mems from the parent
-// directory to the current directory if the file's contents are 0
-//
-// todo: v1 only?
-func cpusetCopyIfNeeded(current, parent string) error {
-	currentCpus, currentMems, err := getCpusetSubsystemSettings(current)
-	if err != nil {
-		return err
-	}
-	parentCpus, parentMems, err := getCpusetSubsystemSettings(parent)
-	if err != nil {
-		return err
-	}
-
-	if isEmptyCpuset(currentCpus) {
-		if err := cgroups.WriteFile(current, "cpuset.cpus", parentCpus); err != nil {
-			return err
-		}
-	}
-	if isEmptyCpuset(currentMems) {
-		if err := cgroups.WriteFile(current, "cpuset.mems", parentMems); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func isEmptyCpuset(str string) bool {
-	return str == "" || str == "\n"
-}
-
-func getCgroupPathHelper(subsystem, cgroup string) (string, error) {
-	fmt.Println("FindCgroupMountPointAndRoot, subsystem:", subsystem, "cgroup:", cgroup)
-	mnt, root, err := cgroups.FindCgroupMountpointAndRoot("", subsystem)
-	if err != nil {
-		return "", err
-	}
-
-	// This is needed for nested containers, because in /proc/self/cgroup we
-	// see paths from host, which don't exist in container.
-	relCgroup, err := filepath.Rel(root, cgroup)
-	if err != nil {
-		return "", err
-	}
-
-	result := filepath.Join(mnt, relCgroup)
-	return result, nil
 }
 
 // FindCgroupMountpointDir is used to find the cgroup mount point on a Linux
@@ -176,4 +90,19 @@ func FindCgroupMountpointDir() (string, error) {
 		return "", nil
 	}
 	return mount[0].Mountpoint, nil
+}
+
+// CopyCpuset copies the cpuset.cpus value from source into destination.
+func CopyCpuset(source, destination string) error {
+	correct, err := cgroups.ReadFile(source, "cpuset.cpus")
+	if err != nil {
+		return err
+	}
+
+	err = cgroups.WriteFile(destination, "cpuset.cpus", correct)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

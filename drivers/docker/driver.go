@@ -31,6 +31,7 @@ import (
 	"github.com/hashicorp/nomad/plugins/base"
 	"github.com/hashicorp/nomad/plugins/drivers"
 	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/ryanuber/go-glob"
 )
 
@@ -123,7 +124,8 @@ type Driver struct {
 	detected     bool
 	detectedLock sync.RWMutex
 
-	reconciler *containerReconciler
+	danglingReconciler *containerReconciler
+	cpusetFixer        *cpusetFixer
 }
 
 // NewDockerDriver returns a docker implementation of a driver plugin
@@ -352,7 +354,11 @@ CREATE:
 	}
 
 	if !cgutil.UseV2 {
-		// TODO compat - can remove when major distros drop cgroups.v1
+		// TODO compat - remove when major distros drop cgroups.v1
+		//
+		// This workaround does not work with cgroups.v2, which only allows setting the PID
+		// into exactly 1 group. For cgroups.v2, we must use the cpuset fixer to reconcile
+		// the cpuset value into the cgroups created by docker in the background.
 		if containerCfg.HostConfig.CPUSet == "" && cfg.Resources.LinuxResources.CpusetCgroupPath != "" {
 			if err := setCPUSetCgroup(cfg.Resources.LinuxResources.CpusetCgroupPath, container.State.Pid); err != nil {
 				return nil, nil, fmt.Errorf("failed to set the cpuset cgroup for container: %v", err)
@@ -851,6 +857,8 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 
 		CPUShares: task.Resources.LinuxResources.CPUShares,
 
+		CgroupParent: "nomad.slice", // configurable
+
 		// Binds are used to mount a host volume into the container. We mount a
 		// local directory for storage and a shared alloc directory that can be
 		// used to share data between different tasks in the same task group.
@@ -1196,7 +1204,10 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 	config.Env = task.EnvList()
 
 	containerName := fmt.Sprintf("%s-%s", strings.ReplaceAll(task.Name, "/", "_"), task.AllocID)
-	logger.Debug("setting container name", "container_name", containerName)
+	if cgroups.IsCgroup2UnifiedMode() {
+		containerName = fmt.Sprintf("%s.%s.scope", task.AllocID, task.Name)
+	}
+	logger.Info("setting container name", "container_name", containerName)
 
 	var networkingConfig *docker.NetworkingConfig
 	if len(driverConfig.NetworkAliases) > 0 || driverConfig.IPv4Address != "" || driverConfig.IPv6Address != "" {

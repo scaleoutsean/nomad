@@ -18,6 +18,7 @@ import (
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
 	"github.com/opencontainers/runc/libcontainer/configs"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -135,18 +136,18 @@ type allocTaskCgroupInfo map[string]*TaskCgroupInfo
 // If the cgroup parent is set to /nomad then this will ensure that the /nomad/shared
 // cgroup is initialized.
 func (c *cpusetManagerV1) Init(_ []uint16) error {
-	cgroupParentPath, err := getCgroupPathHelper("cpuset", c.cgroupParent)
+	cgroupParentPath, err := getCgroupPathHelperV1("cpuset", c.cgroupParent)
 	if err != nil {
 		return err
 	}
 	c.cgroupParentPath = cgroupParentPath
 
 	// ensures that shared cpuset exists and that the cpuset values are copied from the parent if created
-	if err := cpusetEnsureParent(filepath.Join(cgroupParentPath, SharedCpusetCgroupName)); err != nil {
+	if err := cpusetEnsureParentV1(filepath.Join(cgroupParentPath, SharedCpusetCgroupName)); err != nil {
 		return err
 	}
 
-	parentCpus, parentMems, err := getCpusetSubsystemSettings(cgroupParentPath)
+	parentCpus, parentMems, err := getCpusetSubsystemSettingsV1(cgroupParentPath)
 	if err != nil {
 		return fmt.Errorf("failed to detect parent cpuset settings: %v", err)
 	}
@@ -250,7 +251,7 @@ func (c *cpusetManagerV1) reconcileCpusets() {
 		}
 
 		// copy cpuset.mems from parent
-		_, parentMems, err := getCpusetSubsystemSettings(filepath.Dir(info.CgroupPath))
+		_, parentMems, err := getCpusetSubsystemSettingsV1(filepath.Dir(info.CgroupPath))
 		if err != nil {
 			c.logger.Error("failed to read parent cgroup settings for task", "path", info.CgroupPath, "error", err)
 			info.Error = err
@@ -321,7 +322,7 @@ func (c *cpusetManagerV1) reservedCpusetPath() string {
 }
 
 func getCPUsFromCgroupV1(group string) ([]uint16, error) {
-	cgroupPath, err := getCgroupPathHelper("cpuset", group)
+	cgroupPath, err := getCgroupPathHelperV1("cpuset", group)
 	if err != nil {
 		return nil, err
 	}
@@ -339,4 +340,87 @@ func getParentV1(parent string) string {
 		return DefaultCgroupV1Parent
 	}
 	return parent
+}
+
+// cpusetEnsureParentV1 makes sure that the parent directories of current
+// are created and populated with the proper cpus and mems files copied
+// from their respective parent. It does that recursively, starting from
+// the top of the cpuset hierarchy (i.e. cpuset cgroup mount point).
+func cpusetEnsureParentV1(current string) error {
+	var st unix.Statfs_t
+
+	parent := filepath.Dir(current)
+	err := unix.Statfs(parent, &st)
+	if err == nil && st.Type != unix.CGROUP_SUPER_MAGIC {
+		return nil
+	}
+	// Treat non-existing directory as cgroupfs as it will be created,
+	// and the root cpuset directory obviously exists.
+	if err != nil && err != unix.ENOENT {
+		return &os.PathError{Op: "statfs", Path: parent, Err: err}
+	}
+
+	if err := cpusetEnsureParentV1(parent); err != nil {
+		return err
+	}
+	if err := os.Mkdir(current, 0755); err != nil && !os.IsExist(err) {
+		return err
+	}
+	return cpusetCopyIfNeededV1(current, parent)
+}
+
+// cpusetCopyIfNeededV1 copies the cpuset.cpus and cpuset.mems from the parent
+// directory to the current directory if the file's contents are 0
+func cpusetCopyIfNeededV1(current, parent string) error {
+	currentCpus, currentMems, err := getCpusetSubsystemSettingsV1(current)
+	if err != nil {
+		return err
+	}
+	parentCpus, parentMems, err := getCpusetSubsystemSettingsV1(parent)
+	if err != nil {
+		return err
+	}
+
+	if isEmptyCpusetV1(currentCpus) {
+		if err := cgroups.WriteFile(current, "cpuset.cpus", parentCpus); err != nil {
+			return err
+		}
+	}
+	if isEmptyCpusetV1(currentMems) {
+		if err := cgroups.WriteFile(current, "cpuset.mems", parentMems); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func getCpusetSubsystemSettingsV1(parent string) (cpus, mems string, err error) {
+	if cpus, err = cgroups.ReadFile(parent, "cpuset.cpus"); err != nil {
+		return
+	}
+	if mems, err = cgroups.ReadFile(parent, "cpuset.mems"); err != nil {
+		return
+	}
+	return cpus, mems, nil
+}
+
+func isEmptyCpusetV1(str string) bool {
+	return str == "" || str == "\n"
+}
+
+func getCgroupPathHelperV1(subsystem, cgroup string) (string, error) {
+	mnt, root, err := cgroups.FindCgroupMountpointAndRoot("", subsystem)
+	if err != nil {
+		return "", err
+	}
+
+	// This is needed for nested containers, because in /proc/self/cgroup we
+	// see paths from host, which don't exist in container.
+	relCgroup, err := filepath.Rel(root, cgroup)
+	if err != nil {
+		return "", err
+	}
+
+	result := filepath.Join(mnt, relCgroup)
+	return result, nil
 }

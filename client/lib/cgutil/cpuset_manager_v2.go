@@ -250,11 +250,7 @@ func (c *cpusetManagerV2) remove(path string) {
 	}
 
 	// get the list of pids managed by this scope (should be 0 or 1)
-	pids, err2 := mgr.GetPids()
-	if err2 != nil {
-		c.logger.Warn("failed to list pids", "path", path, "err", err)
-		return
-	}
+	pids, _ := mgr.GetPids()
 
 	// do not destroy the scope if a PID is still present
 	// this is a normal condition when an agent restarts with running tasks
@@ -262,6 +258,7 @@ func (c *cpusetManagerV2) remove(path string) {
 		return
 	}
 
+	// remove the cgroup
 	if err3 := mgr.Destroy(); err3 != nil {
 		c.logger.Warn("failed to cleanup cgroup", "path", path, "err", err)
 		return

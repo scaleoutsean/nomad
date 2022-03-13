@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"sort"
 	"strings"
@@ -13,9 +14,10 @@ import (
 )
 
 func (d *Driver) Fingerprint(ctx context.Context) (<-chan *drivers.Fingerprint, error) {
-	// start reconciler when we start fingerprinting
-	// this is the only method called when driver is launched properly
-	d.reconciler.Start()
+	fmt.Println("docker/Driver.Fingerprint")
+	// start docker reconcilers when we start fingerprinting
+	d.danglingReconciler.Start()
+	d.cpusetFixer.Start()
 
 	ch := make(chan *drivers.Fingerprint)
 	go d.handleFingerprint(ctx, ch)
