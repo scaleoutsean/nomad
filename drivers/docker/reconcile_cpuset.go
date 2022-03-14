@@ -87,17 +87,17 @@ func (cf *cpusetFixer) fix(c coordinate) {
 }
 
 type coordinate struct {
-	ContainerID string
-	AllocID     string
-	Task        string
+	containerID string
+	allocID     string
+	task        string
 }
 
 func (c coordinate) NomadScope() string {
-	return cgutil.CgroupID(c.AllocID, c.Task)
+	return cgutil.CgroupID(c.allocID, c.task)
 }
 
 func (c coordinate) DockerScope() string {
-	return fmt.Sprintf("docker-%s.scope", c.ContainerID)
+	return fmt.Sprintf("docker-%s.scope", c.containerID)
 }
 
 func (d *Driver) trackedTasks() map[coordinate]struct{} {
@@ -107,9 +107,9 @@ func (d *Driver) trackedTasks() map[coordinate]struct{} {
 	m := make(map[coordinate]struct{}, len(d.tasks.store))
 	for _, h := range d.tasks.store {
 		m[coordinate{
-			ContainerID: h.containerID,
-			AllocID:     h.task.AllocID,
-			Task:        h.task.Name,
+			containerID: h.containerID,
+			allocID:     h.task.AllocID,
+			task:        h.task.Name,
 		}] = struct{}{}
 	}
 	return m

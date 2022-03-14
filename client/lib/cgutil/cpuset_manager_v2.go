@@ -55,9 +55,9 @@ type cpusetManagerV2 struct {
 	initial   cpuset.CPUSet // set of initial cores (never changes)
 
 	lock      sync.RWMutex                 // hold this with regard to tracking fields
-	pool      cpuset.CPUSet                // cores being shared among across all tasks
-	sharing   map[identifier]nothing       // sharing tasks which use only cpus in the pool
-	isolating map[identifier]cpuset.CPUSet // remember which task goes where to avoid context switching
+	pool      cpuset.CPUSet                // cores being shared among all tasks
+	sharing   map[identifier]nothing       // sharing tasks which use only shared cores in the pool
+	isolating map[identifier]cpuset.CPUSet // isolating tasks which use reserved + shared cores
 }
 
 func NewCpusetManagerV2(parent string, logger hclog.Logger) CpusetManager {
