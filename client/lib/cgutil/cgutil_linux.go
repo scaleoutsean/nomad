@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
-	"github.com/opencontainers/runc/libcontainer/cgroups/fs2"
 	lcc "github.com/opencontainers/runc/libcontainer/configs"
 )
 
@@ -48,6 +47,7 @@ func GetCPUsFromCgroup(group string) ([]uint16, error) {
 }
 
 // SplitPath determines the parent and cgroup from p.
+// p must contain at least 2 elements (parent + cgroup).
 //
 // Handles the cgroup root if present.
 func SplitPath(p string) (string, string) {
@@ -74,17 +74,12 @@ func CgroupID(allocID, task string) string {
 // Not used in cgroups.v2
 func ConfigureBasicCgroups(config *lcc.Config) error {
 	if UseV2 {
-		fmt.Println("ConfigureBasicCgroups - exit v2")
-		path := filepath.Join(v2CgroupRoot, config.Cgroups.Parent, config.Cgroups.Name)
-		mgr, err := fs2.NewManager(nil, path, v2isRootless)
-		if err != nil {
-			return err
-		}
-		return mgr.Apply(v2CreationPID)
+		// In v2 the default behavior is to create inherited interface files for
+		// all mounted subsystems automatically.
+		return nil
 	}
 
 	id := uuid.Generate()
-	fmt.Println("ConfigureBasicCgroups - id:", id)
 
 	// In V1 we must setup the freezer cgroup ourselves
 	subsystem := "freezer"

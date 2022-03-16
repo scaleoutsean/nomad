@@ -692,10 +692,8 @@ func configureCgroups(cfg *lconfigs.Config, command *ExecCommand) error {
 	}
 
 	// set cgroups path
-	_, cgroup := cgutil.SplitPath(command.Resources.LinuxResources.CpusetCgroupPath)
-	cfg.Cgroups.Path = cgroup
-	// cfg.Cgroups.Name = cgroup
-	// cfg.Cgroups.Parent = parent
+	parent, cgroup := cgutil.SplitPath(command.Resources.LinuxResources.CpusetCgroupPath)
+	cfg.Cgroups.Path = filepath.Join("/", parent, cgroup)
 
 	if command.Resources == nil || command.Resources.NomadResources == nil {
 		return nil
