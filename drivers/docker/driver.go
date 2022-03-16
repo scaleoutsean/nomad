@@ -851,8 +851,11 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 		pidsLimit = driverConfig.PidsLimit
 	}
 
+	// Extract the cgroup parent from the nomad cgroup (bypass the need for plugin config)
+	parent, _ := cgutil.SplitPath(task.Resources.LinuxResources.CpusetCgroupPath)
+
 	hostConfig := &docker.HostConfig{
-		CgroupParent: d.config.CgroupParent,
+		CgroupParent: parent,
 
 		Memory:            memory,            // hard limit
 		MemoryReservation: memoryReservation, // soft limit

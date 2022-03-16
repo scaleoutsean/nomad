@@ -887,7 +887,6 @@ func lookPathIn(path string, root string, bin string) (string, error) {
 }
 
 func newSetCPUSetCgroupHook(cgroupPath string) lconfigs.Hook {
-	fmt.Println("SH newSetCPUSetCgroupHook, cgroupPath:", cgroupPath)
 	return lconfigs.NewFunctionHook(func(state *specs.State) error {
 		return cgroups.WriteCgroupProc(cgroupPath, state.Pid)
 	})

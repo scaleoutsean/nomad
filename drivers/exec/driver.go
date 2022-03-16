@@ -500,8 +500,6 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 		Capabilities:     caps,
 	}
 
-	fmt.Println("SH driver.StartTask, exec:", execCmd.Cmd, execCmd.Resources.LinuxResources.CpusetCgroupPath)
-
 	ps, err := exec.Launch(execCmd)
 	if err != nil {
 		pluginClient.Kill()

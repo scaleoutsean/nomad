@@ -32,9 +32,7 @@ type cpusetFixer struct {
 	logger   hclog.Logger
 	interval time.Duration
 	once     sync.Once
-	parent   string
-
-	tasks func() map[coordinate]struct{}
+	tasks    func() map[coordinate]struct{}
 }
 
 func newCpusetFixer(d *Driver) *cpusetFixer {
@@ -42,7 +40,6 @@ func newCpusetFixer(d *Driver) *cpusetFixer {
 		interval: cpusetReconcileInterval,
 		ctx:      d.ctx,
 		logger:   d.logger,
-		parent:   d.config.CgroupParent,
 		tasks:    d.trackedTasks,
 	}
 }
@@ -83,8 +80,8 @@ func (cf *cpusetFixer) scan() {
 }
 
 func (cf *cpusetFixer) fix(c coordinate) {
-	source := filepath.Join(cgutil.V2CgroupRoot, cf.parent, c.NomadScope())
-	destination := filepath.Join(cgutil.V2CgroupRoot, cf.parent, c.DockerScope())
+	source := c.NomadCgroup()
+	destination := c.DockerCgroup()
 	if err := cgutil.CopyCpuset(source, destination); err != nil {
 		cf.logger.Trace("failed to copy cpuset", "err", err)
 	}
@@ -94,14 +91,17 @@ type coordinate struct {
 	containerID string
 	allocID     string
 	task        string
+	path        string
 }
 
-func (c coordinate) NomadScope() string {
-	return cgutil.CgroupID(c.allocID, c.task)
+func (c coordinate) NomadCgroup() string {
+	parent, _ := cgutil.SplitPath(c.path)
+	return filepath.Join(cgutil.V2CgroupRoot, parent, cgutil.CgroupID(c.allocID, c.task))
 }
 
-func (c coordinate) DockerScope() string {
-	return fmt.Sprintf("docker-%s.scope", c.containerID)
+func (c coordinate) DockerCgroup() string {
+	parent, _ := cgutil.SplitPath(c.path)
+	return filepath.Join(cgutil.V2CgroupRoot, parent, fmt.Sprintf("docker-%s.scope", c.containerID))
 }
 
 func (d *Driver) trackedTasks() map[coordinate]struct{} {
@@ -114,6 +114,7 @@ func (d *Driver) trackedTasks() map[coordinate]struct{} {
 			containerID: h.containerID,
 			allocID:     h.task.AllocID,
 			task:        h.task.Name,
+			path:        h.task.Resources.LinuxResources.CpusetCgroupPath,
 		}] = struct{}{}
 	}
 	return m
