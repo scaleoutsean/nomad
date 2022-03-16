@@ -73,10 +73,12 @@ func TestCpusetManager_V2_RemoveAlloc(t *testing.T) {
 	manager := NewCpusetManagerV2(parent, logger)
 	require.NoError(t, manager.Init(systemCores))
 
+	// alloc1 gets core 0
 	alloc1 := mock.Alloc()
 	alloc1.AllocatedResources.Tasks["web"].Cpu.ReservedCores = cpuset.New(0).ToSlice()
 	manager.AddAlloc(alloc1)
 
+	// alloc2 gets core 1
 	alloc2 := mock.Alloc()
 	alloc2.AllocatedResources.Tasks["web"].Cpu.ReservedCores = cpuset.New(1).ToSlice()
 	manager.AddAlloc(alloc2)
