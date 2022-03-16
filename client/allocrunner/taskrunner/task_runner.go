@@ -777,7 +777,7 @@ func (tr *TaskRunner) runDriver() error {
 		if err != nil {
 			return err
 		}
-		fmt.Println("TaskRunner.runDriver, got cpuset group:", cpusetCgroupPath)
+		fmt.Println("TaskRunner.runDriver, SET cpuset group:", cpusetCgroupPath)
 		taskConfig.Resources.LinuxResources.CpusetCgroupPath = cpusetCgroupPath
 	}
 

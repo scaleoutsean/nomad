@@ -128,9 +128,6 @@ func (l *LibcontainerExecutor) Launch(command *ExecCommand) (*ProcessState, erro
 		return nil, fmt.Errorf("failed to create factory: %v", err)
 	}
 
-	// FIND THIS
-	l.logger.Info("LibcontainerExecutor.Launch", "cmd", command.Cmd, "alloc_id", command.AllocID, "task", command.Task)
-
 	// A container groups processes under the same isolation enforcement
 	containerCfg, err := newLibcontainerConfig(command)
 	if err != nil {
@@ -689,30 +686,16 @@ func configureIsolation(cfg *lconfigs.Config, command *ExecCommand) error {
 }
 
 func configureCgroups(cfg *lconfigs.Config, command *ExecCommand) error {
-	f, err := os.OpenFile("/tmp/cc.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		_ = f.Sync()
-		_ = f.Close()
-	}()
-
-	logger := hclog.New(&hclog.LoggerOptions{
-		Output: f,
-	})
-
-	id := cgutil.CgroupID(command.AllocID, command.Task)
-	logger.Info("configureCgroups", "id", id)
-
 	// If resources are not limited then manually create cgroups needed
 	if !command.ResourceLimits {
-		return cgutil.ConfigureBasicCgroups(id, cfg)
+		return cgutil.ConfigureBasicCgroups(cfg)
 	}
 
-	cfg.Cgroups.Path = filepath.Join("/", cgutil.GetCgroupParent(cfg.Cgroups.Parent), id)
-
-	fmt.Println("SH has cmd resource limits, not basic, id:", id, "cgroups.path:", cfg.Cgroups.Path)
+	// set cgroups path
+	_, cgroup := cgutil.SplitPath(command.Resources.LinuxResources.CpusetCgroupPath)
+	cfg.Cgroups.Path = cgroup
+	// cfg.Cgroups.Name = cgroup
+	// cfg.Cgroups.Parent = parent
 
 	if command.Resources == nil || command.Resources.NomadResources == nil {
 		return nil

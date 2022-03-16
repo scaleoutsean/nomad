@@ -68,7 +68,7 @@ func setCmdUser(cmd *exec.Cmd, userid string) error {
 
 // configureResourceContainer configured the cgroups to be used to track pids
 // created by the executor
-func (e *UniversalExecutor) configureResourceContainer(pid int, allocID, task string) error {
+func (e *UniversalExecutor) configureResourceContainer(pid int) error {
 	cfg := &lconfigs.Config{
 		Cgroups: &lconfigs.Cgroup{
 			Resources: &lconfigs.Resources{},
@@ -78,9 +78,7 @@ func (e *UniversalExecutor) configureResourceContainer(pid int, allocID, task st
 		cfg.Cgroups.Resources.Devices = append(cfg.Cgroups.Resources.Devices, &device.Rule)
 	}
 
-	// need allocID and task name
-	cgroupID := cgutil.CgroupID(allocID, task)
-	if err := cgutil.ConfigureBasicCgroups(cgroupID, cfg); err != nil {
+	if err := cgutil.ConfigureBasicCgroups(cfg); err != nil {
 		// Log this error to help diagnose cases where nomad is run with too few
 		// permissions, but don't return an error. There is no separate check for
 		// cgroup creation permissions, so this may be the happy path.

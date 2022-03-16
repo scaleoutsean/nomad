@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
+	"github.com/opencontainers/runc/libcontainer/cgroups/fs2"
 	lcc "github.com/opencontainers/runc/libcontainer/configs"
 )
 
@@ -44,6 +47,17 @@ func GetCPUsFromCgroup(group string) ([]uint16, error) {
 	return getCPUsFromCgroupV1(getParentV1(group))
 }
 
+// SplitPath determines the parent and cgroup from p.
+//
+// Handles the cgroup root if present.
+func SplitPath(p string) (string, string) {
+	p = strings.TrimPrefix(p, v2CgroupRoot)
+	p = strings.TrimPrefix(p, "/")
+	p = strings.TrimSuffix(p, "/")
+	parts := strings.Split(p, string(os.PathSeparator))
+	return parts[0], "/" + filepath.Join(parts[1:]...)
+}
+
 func CgroupID(allocID, task string) string {
 	if allocID == "" || task == "" {
 		panic("empty alloc or task")
@@ -58,14 +72,23 @@ func CgroupID(allocID, task string) string {
 // ConfigureBasicCgroups will initialize cgroups for v1.
 //
 // Not used in cgroups.v2
-func ConfigureBasicCgroups(cgroup string, config *lcc.Config) error {
+func ConfigureBasicCgroups(config *lcc.Config) error {
 	if UseV2 {
-		return nil
+		fmt.Println("ConfigureBasicCgroups - exit v2")
+		path := filepath.Join(v2CgroupRoot, config.Cgroups.Parent, config.Cgroups.Name)
+		mgr, err := fs2.NewManager(nil, path, v2isRootless)
+		if err != nil {
+			return err
+		}
+		return mgr.Apply(v2CreationPID)
 	}
+
+	id := uuid.Generate()
+	fmt.Println("ConfigureBasicCgroups - id:", id)
 
 	// In V1 we must setup the freezer cgroup ourselves
 	subsystem := "freezer"
-	path, err := getCgroupPathHelperV1(subsystem, filepath.Join(DefaultCgroupV1Parent, cgroup))
+	path, err := getCgroupPathHelperV1(subsystem, filepath.Join(DefaultCgroupV1Parent, id))
 	if err != nil {
 		return fmt.Errorf("failed to find %s cgroup mountpoint: %v", subsystem, err)
 	}

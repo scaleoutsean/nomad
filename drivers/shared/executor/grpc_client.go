@@ -31,7 +31,6 @@ type grpcExecutorClient struct {
 }
 
 func (c *grpcExecutorClient) Launch(cmd *ExecCommand) (*ProcessState, error) {
-	fmt.Println("SH grpc.Launch cmd:", cmd.Cmd, "id:", cmd.AllocID, "task:", cmd.Task)
 	ctx := context.Background()
 	req := &proto.LaunchRequest{
 		Cmd:                cmd.Cmd,
@@ -51,8 +50,6 @@ func (c *grpcExecutorClient) Launch(cmd *ExecCommand) (*ProcessState, error) {
 		DefaultPidMode:     cmd.ModePID,
 		DefaultIpcMode:     cmd.ModeIPC,
 		Capabilities:       cmd.Capabilities,
-		AllocId:            cmd.AllocID,
-		TaskName:           cmd.Task,
 	}
 	resp, err := c.client.Launch(ctx, req)
 	if err != nil {
