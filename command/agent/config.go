@@ -911,7 +911,7 @@ func DevConfig(mode *devModeConfig) *Config {
 	conf.Client.GCInodeUsageThreshold = 99
 	conf.Client.GCMaxAllocs = 50
 	conf.Client.TemplateConfig = &client.ClientTemplateConfig{
-		FunctionDenylist: []string{"plugin"},
+		FunctionDenylist: client.DefaultTemplateFunctionDenylist,
 		DisableSandbox:   false,
 	}
 	conf.Client.BindWildcardDefaultHostNetwork = true
@@ -960,7 +960,7 @@ func DefaultConfig() *Config {
 				RetryMaxAttempts: 0,
 			},
 			TemplateConfig: &client.ClientTemplateConfig{
-				FunctionDenylist: []string{"plugin"},
+				FunctionDenylist: client.DefaultTemplateFunctionDenylist,
 				DisableSandbox:   false,
 			},
 			BindWildcardDefaultHostNetwork: true,

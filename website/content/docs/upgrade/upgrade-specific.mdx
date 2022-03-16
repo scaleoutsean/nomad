@@ -94,6 +94,19 @@ be removed in future releases.
 
 The previous `Protocol` value can be viewed using the `-verbose` flag.
 
+#### `client.template.function_denylist` Change
+
+consul-template v0.28 added a new function
+[`writeToFile`](https://github.com/hashicorp/consul-template/blob/v0.28.0/docs/templating-language.md#writeToFile)
+which can write to arbitrary files on the host.
+
+Nomad 1.3.0 disables this function by default in its
+[`function_denylist`](/docs/configuration/client#function_denylist).
+
+However *if you have overridden the default `template.function_denylist` in
+your client configuration, you must add `writeToFile` to your denylist.*
+Failing to do so allows templates to write to arbitrary paths on the host.
+
 ## Nomad 1.2.6, 1.1.12, and 1.0.18
 
 #### ACL requirement for the job parse endpoint
