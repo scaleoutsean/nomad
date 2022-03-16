@@ -92,8 +92,7 @@ jobs:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
     
       - name: Build dependencies
-        run: |
-          make deps
+        run: make deps
       
       - name: Build generate-all
         run: make generate-all
@@ -155,8 +154,7 @@ jobs:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
       
       - name: Build dependencies
-        run: |
-          make deps
+        run: make deps
       
       - name: Build generate-all
         run: make generate-all
@@ -255,8 +253,7 @@ jobs:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
       
       - name: Build dependencies
-        run: |
-          make deps
+        run: make deps
       
       - name: Build generate-all
         run: make generate-all
