@@ -39,6 +39,7 @@ func CreateCPUSetManager(parent string, logger hclog.Logger) CpusetManager {
 	return NewCpusetManagerV1(getParentV1(parent), logger.Named("cpuset.v1"))
 }
 
+// GetCPUsFromCgroup gets the effective cpuset value for the given cgroup.
 func GetCPUsFromCgroup(group string) ([]uint16, error) {
 	if UseV2 {
 		return v2GetCPUsFromCgroup(v2GetParent(group))
@@ -51,26 +52,25 @@ func GetCPUsFromCgroup(group string) ([]uint16, error) {
 //
 // Handles the cgroup root if present.
 func SplitPath(p string) (string, string) {
-	p = strings.TrimPrefix(p, V2CgroupRoot)
+	p = strings.TrimPrefix(p, CgroupRoot)
 	p = strings.Trim(p, "/")
 	parts := strings.Split(p, string(os.PathSeparator))
 	return parts[0], "/" + filepath.Join(parts[1:]...)
 }
 
-func CgroupID(allocID, task string) string {
-	if allocID == "" || task == "" {
-		panic("empty alloc or task")
-	}
-
-	if UseV2 {
-		return fmt.Sprintf("%s.%s.scope", allocID, task)
-	}
-	return fmt.Sprintf("%s.%s", task, allocID)
+// CgroupScope returns the name of the scope for Nomad's managed cgroups for
+// the given allocID and task.
+//
+// e.g. "<allocID>-<task>.scope"
+//
+// Only useful for v2.
+func CgroupScope(allocID, task string) string {
+	return fmt.Sprintf("%s.%s.scope", allocID, task)
 }
 
 // ConfigureBasicCgroups will initialize cgroups for v1.
 //
-// Not used in cgroups.v2
+// Not useful in cgroups.v2
 func ConfigureBasicCgroups(config *lcc.Config) error {
 	if UseV2 {
 		// In v2 the default behavior is to create inherited interface files for

@@ -96,12 +96,12 @@ type coordinate struct {
 
 func (c coordinate) NomadCgroup() string {
 	parent, _ := cgutil.SplitPath(c.path)
-	return filepath.Join(cgutil.V2CgroupRoot, parent, cgutil.CgroupID(c.allocID, c.task))
+	return filepath.Join(cgutil.CgroupRoot, parent, cgutil.CgroupScope(c.allocID, c.task))
 }
 
 func (c coordinate) DockerCgroup() string {
 	parent, _ := cgutil.SplitPath(c.path)
-	return filepath.Join(cgutil.V2CgroupRoot, parent, fmt.Sprintf("docker-%s.scope", c.containerID))
+	return filepath.Join(cgutil.CgroupRoot, parent, fmt.Sprintf("docker-%s.scope", c.containerID))
 }
 
 func (d *Driver) trackedTasks() map[coordinate]struct{} {
