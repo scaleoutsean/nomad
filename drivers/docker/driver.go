@@ -852,12 +852,12 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 	}
 
 	hostConfig := &docker.HostConfig{
+		CgroupParent: d.config.CgroupParent,
+
 		Memory:            memory,            // hard limit
 		MemoryReservation: memoryReservation, // soft limit
 
 		CPUShares: task.Resources.LinuxResources.CPUShares,
-
-		CgroupParent: "nomad.slice", // configurable
 
 		// Binds are used to mount a host volume into the container. We mount a
 		// local directory for storage and a shared alloc directory that can be

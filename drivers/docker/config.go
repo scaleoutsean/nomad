@@ -10,6 +10,7 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/nomad/client/lib/cgutil"
 	"github.com/hashicorp/nomad/drivers/shared/capabilities"
 	"github.com/hashicorp/nomad/helper/pluginutils/hclutils"
 	"github.com/hashicorp/nomad/helper/pluginutils/loader"
@@ -212,6 +213,8 @@ var (
 				max-size = "2m"
 			}
 		}`)),
+
+		"cgroup_parent": hclspec.NewAttr("cgroup_parent", "string", false),
 
 		// garbage collection options
 		// default needed for both if the gc {...} block is not set and
@@ -628,6 +631,7 @@ type DriverConfig struct {
 	pullActivityTimeoutDuration   time.Duration `codec:"-"`
 	ExtraLabels                   []string      `codec:"extra_labels"`
 	Logging                       LoggingConfig `codec:"logging"`
+	CgroupParent                  string        `codec:"cgroup_parent"`
 
 	AllowRuntimesList []string            `codec:"allow_runtimes"`
 	allowRuntimes     map[string]struct{} `codec:"-"`
@@ -684,6 +688,8 @@ func (d *Driver) SetConfig(c *base.Config) error {
 
 	d.config = &config
 	d.config.InfraImage = strings.TrimPrefix(d.config.InfraImage, "https://")
+
+	d.config.CgroupParent = cgutil.GetCgroupParent(d.config.CgroupParent)
 
 	if len(d.config.GC.ImageDelay) > 0 {
 		dur, err := time.ParseDuration(d.config.GC.ImageDelay)

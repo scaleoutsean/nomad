@@ -51,9 +51,8 @@ func GetCPUsFromCgroup(group string) ([]uint16, error) {
 //
 // Handles the cgroup root if present.
 func SplitPath(p string) (string, string) {
-	p = strings.TrimPrefix(p, v2CgroupRoot)
-	p = strings.TrimPrefix(p, "/")
-	p = strings.TrimSuffix(p, "/")
+	p = strings.TrimPrefix(p, V2CgroupRoot)
+	p = strings.Trim(p, "/")
 	parts := strings.Split(p, string(os.PathSeparator))
 	return parts[0], "/" + filepath.Join(parts[1:]...)
 }

@@ -32,22 +32,26 @@ type cpusetFixer struct {
 	logger   hclog.Logger
 	interval time.Duration
 	once     sync.Once
+	parent   string
 
 	tasks func() map[coordinate]struct{}
 }
 
 func newCpusetFixer(d *Driver) *cpusetFixer {
-	fmt.Println("newCpusetFixer")
 	return &cpusetFixer{
 		interval: cpusetReconcileInterval,
 		ctx:      d.ctx,
 		logger:   d.logger,
+		parent:   d.config.CgroupParent,
 		tasks:    d.trackedTasks,
 	}
 }
 
+// Start will start the background cpuset reconciliation until the cf context is
+// cancelled for shutdown.
+//
+// Only runs if cgroups.v2 is in use.
 func (cf *cpusetFixer) Start() {
-	fmt.Println("cpusetFixer.Start")
 	cf.once.Do(func() {
 		if cgutil.UseV2 {
 			go cf.loop()
@@ -79,8 +83,8 @@ func (cf *cpusetFixer) scan() {
 }
 
 func (cf *cpusetFixer) fix(c coordinate) {
-	source := filepath.Join("/sys/fs/cgroup/nomad.slice", c.NomadScope())
-	destination := filepath.Join("/sys/fs/cgroup/nomad.slice", c.DockerScope())
+	source := filepath.Join(cgutil.V2CgroupRoot, cf.parent, c.NomadScope())
+	destination := filepath.Join(cgutil.V2CgroupRoot, cf.parent, c.DockerScope())
 	if err := cgutil.CopyCpuset(source, destination); err != nil {
 		cf.logger.Trace("failed to copy cpuset", "err", err)
 	}

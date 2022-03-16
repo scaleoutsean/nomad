@@ -26,8 +26,8 @@ const (
 	// configured systemd cgroup.
 	V2defaultCgroupParent = "nomad.slice"
 
-	// v2CgroupRoot is hard-coded in the cgroups.v2 specification.
-	v2CgroupRoot = "/sys/fs/cgroup"
+	// V2CgroupRoot is hard-coded in the cgroups.v2 specification.
+	V2CgroupRoot = "/sys/fs/cgroup"
 
 	// v2isRootless is (for now) always false; Nomad clients require root.
 	v2isRootless = false
@@ -65,7 +65,7 @@ func NewCpusetManagerV2(parent string, logger hclog.Logger) CpusetManager {
 	return &cpusetManagerV2{
 		ctx:       context.TODO(),
 		parent:    cgroupParent,
-		parentAbs: filepath.Join(v2CgroupRoot, cgroupParent),
+		parentAbs: filepath.Join(V2CgroupRoot, cgroupParent),
 		logger:    logger,
 		sharing:   make(map[identifier]nothing),
 		isolating: make(map[identifier]cpuset.CPUSet),
@@ -304,7 +304,7 @@ func (c *cpusetManagerV2) ensureParent() error {
 }
 
 func v2Root(group string) string {
-	return filepath.Join(v2CgroupRoot, group)
+	return filepath.Join(V2CgroupRoot, group)
 }
 
 func v2GetCPUsFromCgroup(group string) ([]uint16, error) {
