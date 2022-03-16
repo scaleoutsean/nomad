@@ -49,16 +49,10 @@ func (n NoopCpusetManager) CgroupPathFor(allocID, task string) CgroupPathGetter 
 type CgroupPathGetter func(context.Context) (path string, err error)
 
 type TaskCgroupInfo struct {
-	AllocID            string // v2 only
-	Task               string // v2 only
 	CgroupPath         string
 	RelativeCgroupPath string
 	Cpuset             cpuset.CPUSet
 	Error              error
-}
-
-func (t TaskCgroupInfo) ID() string {
-	return makeID(t.AllocID, t.Task)
 }
 
 func makeID(allocID, task string) string {

@@ -111,7 +111,7 @@ func create(t *testing.T, name string) {
 }
 
 func cleanup(t *testing.T, name string) {
-	err := cgroups.RemovePath(filepath.Join(CgroupRoot, name))
+	err := cgroups.RemovePath(name)
 	require.NoError(t, err)
 }
 
