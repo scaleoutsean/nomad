@@ -24,3 +24,8 @@ func NewCpusetManager(string, hclog.Logger) CpusetManager {
 func FindCgroupMountpointDir() (string, error) {
 	return "", nil
 }
+
+// GetCgroupParent returns nothing for non-Linux operating systems.
+func GetCgroupParent(string) string {
+	return DefaultCgroupParent
+}
