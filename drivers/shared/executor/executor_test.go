@@ -519,6 +519,7 @@ func copyFile(t *testing.T, src, dst string) {
 func TestExecutor_Start_Kill_Immediately_NoGrace(t *testing.T) {
 	ci.Parallel(t)
 	for name, factory := range executorFactories {
+
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
 			testExecCmd := testExecutorCommand(t)
@@ -529,6 +530,8 @@ func TestExecutor_Start_Kill_Immediately_NoGrace(t *testing.T) {
 			defer allocDir.Destroy()
 			executor := factory.new(testlog.HCLogger(t))
 			defer executor.Shutdown("", 0)
+
+			fmt.Println("execCmd.ResourceLimits:", execCmd.ResourceLimits)
 
 			ps, err := executor.Launch(execCmd)
 			require.NoError(err)
@@ -565,6 +568,8 @@ func TestExecutor_Start_Kill_Immediately_WithGrace(t *testing.T) {
 			defer allocDir.Destroy()
 			executor := factory.new(testlog.HCLogger(t))
 			defer executor.Shutdown("", 0)
+
+			fmt.Println("execCmd.ResourceLimits:", execCmd.ResourceLimits)
 
 			ps, err := executor.Launch(execCmd)
 			require.NoError(err)

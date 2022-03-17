@@ -256,8 +256,10 @@ passwd`
 // hierarchy created for this process
 func TestExecutor_CgroupPaths(t *testing.T) {
 	ci.Parallel(t)
-	require := require.New(t)
 	testutil.ExecCompatible(t)
+	testutil.CgroupsCompatibleV1(t)
+
+	require := require.New(t)
 
 	testExecCmd := testExecutorCommandWithChroot(t)
 	execCmd, allocDir := testExecCmd.command, testExecCmd.allocDir
@@ -285,17 +287,20 @@ func TestExecutor_CgroupPaths(t *testing.T) {
 			return false, fmt.Errorf("was expected cgroup files but found:\n%v", output)
 		}
 		lines := strings.Split(output, "\n")
-		for _, line := range lines {
+		for i, line := range lines {
 			// Every cgroup entry should be /nomad/$ALLOC_ID
 			if line == "" {
 				continue
 			}
 
-			// Skip rdma subsystem; rdma was added in most recent kernels and libcontainer/docker
+			_ = i
+			fmt.Println(i, line)
+
+			// Skip rdma & misc subsystem; rdma was added in most recent kernels and libcontainer/docker
 			// don't isolate it by default.
 			// :: filters out odd empty cgroup found in latest Ubuntu lines, e.g. 0::/user.slice/user-1000.slice/session-17.scope
 			// that is also not used for isolation
-			if strings.Contains(line, ":rdma:") || strings.Contains(line, "::") {
+			if strings.Contains(line, ":rdma:") || strings.Contains(line, ":misc:") || strings.Contains(line, "::") {
 				continue
 			}
 
@@ -311,8 +316,10 @@ func TestExecutor_CgroupPaths(t *testing.T) {
 // are destroyed on shutdown
 func TestExecutor_CgroupPathsAreDestroyed(t *testing.T) {
 	ci.Parallel(t)
-	require := require.New(t)
 	testutil.ExecCompatible(t)
+	testutil.CgroupsCompatibleV1(t)
+
+	require := require.New(t)
 
 	testExecCmd := testExecutorCommandWithChroot(t)
 	execCmd, allocDir := testExecCmd.command, testExecCmd.allocDir

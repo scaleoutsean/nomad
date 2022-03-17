@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -77,6 +78,8 @@ func (e *UniversalExecutor) configureResourceContainer(pid int) error {
 	for _, device := range specconv.AllowedDevices {
 		cfg.Cgroups.Resources.Devices = append(cfg.Cgroups.Resources.Devices, &device.Rule)
 	}
+
+	ioutil.TempDir("", "-pid"+strconv.Itoa(pid))
 
 	if err := cgutil.ConfigureBasicCgroups(cfg); err != nil {
 		// Log this error to help diagnose cases where nomad is run with too few

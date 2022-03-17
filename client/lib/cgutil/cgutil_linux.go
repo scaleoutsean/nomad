@@ -73,10 +73,13 @@ func CgroupScope(allocID, task string) string {
 // Not useful in cgroups.v2
 func ConfigureBasicCgroups(config *lcc.Config) error {
 	if UseV2 {
+		fmt.Println("ConfigureBasicCgroups UseV2, exit")
 		// In v2 the default behavior is to create inherited interface files for
 		// all mounted subsystems automatically.
 		return nil
 	}
+
+	fmt.Println("ConfigureBasicCgroups v1 continue")
 
 	id := uuid.Generate()
 

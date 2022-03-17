@@ -38,10 +38,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const (
-	defaultCgroupParent = "/nomad"
-)
-
 var (
 	// ExecutorCgroupV1MeasuredMemStats is the list of memory stats captured by the executor with cgroup-v1
 	ExecutorCgroupV1MeasuredMemStats = []string{"RSS", "Cache", "Swap", "Usage", "Max Usage", "Kernel Usage", "Kernel Max Usage"}
@@ -82,6 +78,7 @@ func NewExecutorWithIsolation(logger hclog.Logger) Executor {
 	dlog := hclog.New(&hclog.LoggerOptions{
 		Output: debug,
 		Name:   "exec",
+		Level:  hclog.Trace,
 	})
 
 	logger = logger.Named("isolated_executor")
@@ -101,9 +98,6 @@ func NewExecutorWithIsolation(logger hclog.Logger) Executor {
 }
 
 // Launch creates a new container in libcontainer and starts a new process with it
-//
-// BTW, logging and printing does nothing here, this is being running in a sub-process.
-// For debugging, try writing to a file.
 func (l *LibcontainerExecutor) Launch(command *ExecCommand) (*ProcessState, error) {
 	l.logger.Trace("preparing to launch command", "command", command.Cmd, "args", strings.Join(command.Args, " "))
 
@@ -129,7 +123,7 @@ func (l *LibcontainerExecutor) Launch(command *ExecCommand) (*ProcessState, erro
 	}
 
 	// A container groups processes under the same isolation enforcement
-	containerCfg, err := newLibcontainerConfig(command)
+	containerCfg, err := newLibcontainerConfig(l.logger, command)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure container(%s): %v", l.id, err)
 	}
@@ -685,17 +679,29 @@ func configureIsolation(cfg *lconfigs.Config, command *ExecCommand) error {
 	return nil
 }
 
-func configureCgroups(cfg *lconfigs.Config, command *ExecCommand) error {
+func configureCgroups(logger hclog.Logger, cfg *lconfigs.Config, command *ExecCommand) error {
+	logger.Info("configureCgroups cmd:", command.Cmd)
 	// If resources are not limited then manually create cgroups needed
 	if !command.ResourceLimits {
+		logger.Info("will do basic cgroups")
 		return cgutil.ConfigureBasicCgroups(cfg)
 	}
 
 	// set cgroups path
-	parent, cgroup := cgutil.SplitPath(command.Resources.LinuxResources.CpusetCgroupPath)
-	cfg.Cgroups.Path = filepath.Join("/", parent, cgroup)
+	if cgutil.UseV2 {
+		logger.Info("set path v2")
+		parent, cgroup := cgutil.SplitPath(command.Resources.LinuxResources.CpusetCgroupPath)
+		cfg.Cgroups.Path = filepath.Join("/", parent, cgroup)
+	} else {
+		logger.Info("set path v1")
+		id := uuid.Generate()
+		cfg.Cgroups.Path = filepath.Join("/", cgutil.DefaultCgroupV1Parent, id)
+	}
+
+	logger.Info("set cgroups path:", "path", cfg.Cgroups.Path)
 
 	if command.Resources == nil || command.Resources.NomadResources == nil {
+		logger.Info("resources nil, exit")
 		return nil
 	}
 
@@ -726,11 +732,15 @@ func configureCgroups(cfg *lconfigs.Config, command *ExecCommand) error {
 	cfg.Cgroups.Resources.CpuWeight = cgroups.ConvertCPUSharesToCgroupV2Value(uint64(cpuShares))
 
 	if command.Resources.LinuxResources != nil && command.Resources.LinuxResources.CpusetCgroupPath != "" {
+		logger.Info("setup hook")
 		cfg.Hooks = lconfigs.Hooks{
 			lconfigs.CreateRuntime: lconfigs.HookList{
 				newSetCPUSetCgroupHook(command.Resources.LinuxResources.CpusetCgroupPath),
 			},
 		}
+	} else {
+		logger.Info("no hook", "LinuxResources:", command.Resources.LinuxResources)
+		// logger.Info("no hook, CpusetCgroupPath:", command.Resources.LinuxResources.CpusetCgroupPath)
 	}
 
 	return nil
@@ -752,7 +762,8 @@ func getCgroupPathHelper(subsystem, cgroup string) (string, error) {
 	return filepath.Join(mnt, relCgroup), nil
 }
 
-func newLibcontainerConfig(command *ExecCommand) (*lconfigs.Config, error) {
+func newLibcontainerConfig(logger hclog.Logger, command *ExecCommand) (*lconfigs.Config, error) {
+	logger.Info("newLibcontainerConfig command:", command.Cmd)
 	cfg := &lconfigs.Config{
 		Cgroups: &lconfigs.Cgroup{
 			Resources: &lconfigs.Resources{
@@ -776,7 +787,8 @@ func newLibcontainerConfig(command *ExecCommand) (*lconfigs.Config, error) {
 		return nil, err
 	}
 
-	if err := configureCgroups(cfg, command); err != nil {
+	if err := configureCgroups(logger, cfg, command); err != nil {
+		logger.Error("configureCgroups failed", "error", err)
 		return nil, err
 	}
 

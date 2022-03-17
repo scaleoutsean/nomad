@@ -28,8 +28,6 @@ const (
 )
 
 // NewCpusetManagerV1 creates a  CpusetManager compatible with cgroups.v1
-//
-// TODO compat - can remove when major distros drop cgroups.v1
 func NewCpusetManagerV1(cgroupParent string, logger hclog.Logger) CpusetManager {
 	if cgroupParent == "" {
 		cgroupParent = DefaultCgroupV1Parent
@@ -136,6 +134,7 @@ type allocTaskCgroupInfo map[string]*TaskCgroupInfo
 // If the cgroup parent is set to /nomad then this will ensure that the /nomad/shared
 // cgroup is initialized.
 func (c *cpusetManagerV1) Init(_ []uint16) error {
+	fmt.Println("Init")
 	cgroupParentPath, err := getCgroupPathHelperV1("cpuset", c.cgroupParent)
 	if err != nil {
 		return err
