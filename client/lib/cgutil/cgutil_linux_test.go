@@ -119,6 +119,7 @@ func TestUtil_CopyCpuset(t *testing.T) {
 	ci.Parallel(t)
 
 	t.Run("v2", func(t *testing.T) {
+		testutil.CgroupsCompatibleV2(t)
 		source := uuid.Short() + ".scope"
 		create(t, source)
 		defer cleanup(t, source)
