@@ -94,9 +94,6 @@ jobs:
       - name: Build dependencies
         run: make deps
       
-      - name: Build prerelease
-        run: make prerelease
-      
       - name: Setup node and yarn
         uses: actions/setup-node@v2
         with:
@@ -114,7 +111,10 @@ jobs:
           yarn install --network-timeout 300000
           yarn --verbose run build
           cd ..
-
+      
+      - name: Build prerelease
+        run: make prerelease
+      
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
@@ -153,9 +153,6 @@ jobs:
       - name: Build dependencies
         run: make deps
       
-      - name: Build prerelease
-        run: make prerelease
-      
       - name: Setup node and yarn
         uses: actions/setup-node@v2
         with:
@@ -173,6 +170,9 @@ jobs:
           yarn install --network-timeout 300000
           yarn --verbose run build
           cd ..
+      
+      - name: Build prerelease
+        run: make prerelease
 
       - name: Build
         env:
@@ -249,9 +249,6 @@ jobs:
       - name: Build dependencies
         run: make deps
       
-      - name: Build prerelease
-        run: make prerelease
-      
       - name: Setup node and yarn
         uses: actions/setup-node@v2
         with:
@@ -269,6 +266,9 @@ jobs:
           yarn install --network-timeout 300000
           yarn --verbose run build
           cd ..
+      
+      - name: Build prerelease
+        run: make prerelease
       
       - name: Build
         env:
