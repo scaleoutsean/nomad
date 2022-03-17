@@ -23,18 +23,19 @@ const (
 	// CgroupRoot is hard-coded in the cgroups specification.
 	CgroupRoot = "/sys/fs/cgroup"
 
-	// V2defaultCgroupParent is the name of Nomad's default parent cgroup, under which
+	// CreationPID is a special PID in libcontainer used to denote a cgroup
+	// should be created, but with no process added.
+	CreationPID = -1
+
+	// DefaultCgroupParentV2 is the name of Nomad's default parent cgroup, under which
 	// all other cgroups are managed. This can be changed with client configuration
 	// in case for e.g. Nomad tasks should be further constrained by an externally
 	// configured systemd cgroup.
-	V2defaultCgroupParent = "nomad.slice"
+	DefaultCgroupParentV2 = "nomad.slice"
 
-	// v2isRootless is (for now) always false; Nomad clients require root.
-	v2isRootless = false
-
-	// v2CreationPID is a special PID in libcontainer used to denote a cgroup
-	// should be created, but with no process added.
-	v2CreationPID = -1
+	// isRootless is (for now) always false; Nomad clients require root, so we
+	// assume to not do the extra plumbing for rootless cgroups.
+	isRootless = false
 )
 
 // identifier is the "<allocID>.<taskName>" string that uniquely identifies an
@@ -44,6 +45,7 @@ type identifier = string
 // nothing is used for treating a map like a set with no values
 type nothing struct{}
 
+// null represents nothing
 var null = nothing{}
 
 type cpusetManagerV2 struct {
@@ -53,14 +55,14 @@ type cpusetManagerV2 struct {
 	parentAbs string        // absolute path (e.g. "/sys/fs/cgroup/nomad.slice")
 	initial   cpuset.CPUSet // set of initial cores (never changes)
 
-	lock      sync.RWMutex                 // hold this with regard to tracking fields
+	lock      sync.Mutex                   // hold this with regard to tracking fields
 	pool      cpuset.CPUSet                // cores being shared among all tasks
 	sharing   map[identifier]nothing       // sharing tasks which use only shared cores in the pool
 	isolating map[identifier]cpuset.CPUSet // isolating tasks which use reserved + shared cores
 }
 
 func NewCpusetManagerV2(parent string, logger hclog.Logger) CpusetManager {
-	cgroupParent := v2GetParent(parent)
+	cgroupParent := getParentV2(parent)
 	return &cpusetManagerV2{
 		parent:    cgroupParent,
 		parentAbs: filepath.Join(CgroupRoot, cgroupParent),
@@ -87,8 +89,9 @@ func (c *cpusetManagerV2) AddAlloc(alloc *structs.Allocation) {
 
 	c.logger.Trace("add allocation", "name", alloc.Name, "id", alloc.ID)
 
-	// grab write lock while we recompute
+	// grab write lock while we recompute and apply changes
 	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	// first update our tracking of isolating and sharing tasks
 	for task, resources := range alloc.AllocatedResources.Tasks {
@@ -103,18 +106,18 @@ func (c *cpusetManagerV2) AddAlloc(alloc *structs.Allocation) {
 	// recompute the available sharable cpu cores
 	c.recalculate()
 
-	// let go of write lock, reconcile only needs read lock
-	c.lock.Unlock()
-
 	// now write out the entire cgroups space
 	c.reconcile()
+
+	// no need to cleanup on adds, we did not remove a task
 }
 
 func (c *cpusetManagerV2) RemoveAlloc(allocID string) {
 	c.logger.Info("remove allocation", "id", allocID)
 
-	// grab write lock while we recompute
+	// grab write lock while we recompute and apply changes.
 	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	// remove tasks of allocID from the sharing set
 	for id := range c.sharing {
@@ -133,11 +136,11 @@ func (c *cpusetManagerV2) RemoveAlloc(allocID string) {
 	// recompute available sharable cpu cores
 	c.recalculate()
 
-	// let go of write lock, reconcile only needs read lock
-	c.lock.Unlock()
-
 	// now write out the entire cgroups space
 	c.reconcile()
+
+	// now remove any tasks no longer running
+	c.cleanup()
 }
 
 // recalculate the number of cores sharable by non-isolating tasks (and isolating tasks)
@@ -154,7 +157,8 @@ func (c *cpusetManagerV2) recalculate() {
 func (c *cpusetManagerV2) CgroupPathFor(allocID, task string) CgroupPathGetter {
 	c.logger.Info("cgroup path for", "id", allocID, "task", task)
 
-	// block until cgroup for allocID.task exists
+	// The CgroupPathFor implementation must block until cgroup for allocID.task
+	// exists [and can accept a PID].
 
 	return func(ctx context.Context) (string, error) {
 		ticks, cancel := helper.NewSafeTimer(100 * time.Millisecond)
@@ -162,7 +166,7 @@ func (c *cpusetManagerV2) CgroupPathFor(allocID, task string) CgroupPathGetter {
 
 		for {
 			path := c.pathOf(makeID(allocID, task))
-			mgr, err := fs2.NewManager(nil, path, v2isRootless)
+			mgr, err := fs2.NewManager(nil, path, isRootless)
 			if err != nil {
 				return "", err
 			}
@@ -181,10 +185,8 @@ func (c *cpusetManagerV2) CgroupPathFor(allocID, task string) CgroupPathGetter {
 	}
 }
 
+// must be called while holding c.lock
 func (c *cpusetManagerV2) reconcile() {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-
 	for id := range c.sharing {
 		c.write(id, c.pool)
 	}
@@ -192,13 +194,10 @@ func (c *cpusetManagerV2) reconcile() {
 	for id, set := range c.isolating {
 		c.write(id, c.pool.Union(set))
 	}
-
-	c.cleanup()
 }
 
 // must be called while holding c.lock
 func (c *cpusetManagerV2) cleanup() {
-
 	// create a map to lookup ids we know about
 	size := len(c.sharing) + len(c.isolating)
 	ids := make(map[identifier]nothing, size)
@@ -241,7 +240,7 @@ func (c *cpusetManagerV2) pathOf(id string) string {
 }
 
 func (c *cpusetManagerV2) remove(path string) {
-	mgr, err := fs2.NewManager(nil, path, v2isRootless)
+	mgr, err := fs2.NewManager(nil, path, isRootless)
 	if err != nil {
 		c.logger.Warn("failed to create manager", "path", path, "err", err)
 		return
@@ -252,6 +251,7 @@ func (c *cpusetManagerV2) remove(path string) {
 
 	// do not destroy the scope if a PID is still present
 	// this is a normal condition when an agent restarts with running tasks
+	// and the v2 manager is still rebuilding its tracked tasks
 	if len(pids) > 0 {
 		return
 	}
@@ -267,13 +267,13 @@ func (c *cpusetManagerV2) write(id string, set cpuset.CPUSet) {
 	path := c.pathOf(id)
 
 	// make a manager for the cgroup
-	m, err := fs2.NewManager(nil, path, v2isRootless)
+	m, err := fs2.NewManager(nil, path, isRootless)
 	if err != nil {
 		c.logger.Error("failed to manage cgroup", "path", path, "err", err)
 	}
 
 	// create the cgroup
-	if err = m.Apply(v2CreationPID); err != nil {
+	if err = m.Apply(CreationPID); err != nil {
 		c.logger.Error("failed to apply cgroup", "path", path, "err", err)
 	}
 
@@ -288,12 +288,12 @@ func (c *cpusetManagerV2) write(id string, set cpuset.CPUSet) {
 // ensureParentCgroup will create parent cgroup for the manager if it does not
 // exist yet. No PIDs are added to any cgroup yet.
 func (c *cpusetManagerV2) ensureParent() error {
-	mgr, err := fs2.NewManager(nil, c.parentAbs, v2isRootless)
+	mgr, err := fs2.NewManager(nil, c.parentAbs, isRootless)
 	if err != nil {
 		return err
 	}
 
-	if err = mgr.Apply(v2CreationPID); err != nil {
+	if err = mgr.Apply(CreationPID); err != nil {
 		return err
 	}
 
@@ -301,12 +301,14 @@ func (c *cpusetManagerV2) ensureParent() error {
 	return nil
 }
 
-func v2Root(group string) string {
+func fromRoot(group string) string {
 	return filepath.Join(CgroupRoot, group)
 }
 
-func v2GetCPUsFromCgroup(group string) ([]uint16, error) {
-	path := v2Root(group)
+// getCPUsFromCgroupV2 retrieves the effective cpuset for the group, which must
+// be directly under the cgroup root (i.e. the parent, like nomad.slice).
+func getCPUsFromCgroupV2(group string) ([]uint16, error) {
+	path := fromRoot(group)
 	effective, err := cgroups.ReadFile(path, "cpuset.cpus.effective")
 	if err != nil {
 		return nil, err
@@ -318,9 +320,11 @@ func v2GetCPUsFromCgroup(group string) ([]uint16, error) {
 	return set.ToSlice(), nil
 }
 
-func v2GetParent(parent string) string {
+// getParentV2 returns parent if set, otherwise the default name of Nomad's
+// parent cgroup (i.e. nomad.slice).
+func getParentV2(parent string) string {
 	if parent == "" {
-		return V2defaultCgroupParent
+		return DefaultCgroupParentV2
 	}
 	return parent
 }

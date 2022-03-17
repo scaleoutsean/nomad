@@ -104,9 +104,9 @@ func TestUtil_GetCPUsFromCgroup(t *testing.T) {
 }
 
 func create(t *testing.T, name string) {
-	mgr, err := fs2.NewManager(nil, filepath.Join(CgroupRoot, name), v2isRootless)
+	mgr, err := fs2.NewManager(nil, filepath.Join(CgroupRoot, name), isRootless)
 	require.NoError(t, err)
-	err = mgr.Apply(v2CreationPID)
+	err = mgr.Apply(CreationPID)
 	require.NoError(t, err)
 }
 

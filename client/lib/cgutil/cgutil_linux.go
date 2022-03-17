@@ -26,7 +26,7 @@ var UseV2 = cgroups.IsCgroup2UnifiedMode()
 // of cgroups will be used.
 func GetCgroupParent(parent string) string {
 	if UseV2 {
-		return v2GetParent(parent)
+		return getParentV2(parent)
 	}
 	return getParentV1(parent)
 }
@@ -34,7 +34,7 @@ func GetCgroupParent(parent string) string {
 // CreateCPUSetManager creates a V1 or V2 CpusetManager depending on system configuration.
 func CreateCPUSetManager(parent string, logger hclog.Logger) CpusetManager {
 	if UseV2 {
-		return NewCpusetManagerV2(v2GetParent(parent), logger.Named("cpuset.v2"))
+		return NewCpusetManagerV2(getParentV2(parent), logger.Named("cpuset.v2"))
 	}
 	return NewCpusetManagerV1(getParentV1(parent), logger.Named("cpuset.v1"))
 }
@@ -42,7 +42,7 @@ func CreateCPUSetManager(parent string, logger hclog.Logger) CpusetManager {
 // GetCPUsFromCgroup gets the effective cpuset value for the given cgroup.
 func GetCPUsFromCgroup(group string) ([]uint16, error) {
 	if UseV2 {
-		return v2GetCPUsFromCgroup(v2GetParent(group))
+		return getCPUsFromCgroupV2(getParentV2(group))
 	}
 	return getCPUsFromCgroupV1(getParentV1(group))
 }
