@@ -94,29 +94,8 @@ jobs:
       - name: Build dependencies
         run: make deps
       
-      - name: Build generate-all
-        run: make generate-all
-      
-      - name: Setup node and yarn
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-          cache: 'yarn'
-          cache-dependency-path: 'ui/yarn.lock'
-      
-      - name: Install Yarn
-        run: |
-          npm install -g yarn
-      
-      - name: UI Build
-        run: |
-          cd ui
-          yarn install --network-timeout 300000
-          yarn --verbose run build
-          cd ..
-      
-      - name: Build static assets
-        run: make static-assets  
+      - name: Build prerelease
+        run: make prerelease
 
       - name: Build
         env:
@@ -156,36 +135,15 @@ jobs:
       - name: Build dependencies
         run: make deps
       
-      - name: Build generate-all
-        run: make generate-all
-      
-      - name: Setup node and yarn
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-          cache: 'yarn'
-          cache-dependency-path: 'ui/yarn.lock'
-      
-      - name: Install Yarn
-        run: |
-          npm install -g yarn
-      
-      - name: UI Build
-        run: |
-          cd ui
-          yarn install --network-timeout 300000
-          yarn --verbose run build
-          cd ..
-
-      - name: Build static assets
-        run: make static-assets
+      - name: Build prerelease
+        run: make prerelease
 
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           LD_FLAGS: ${{ needs.set-ld-flags.outputs.ldflags }}
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
         run: |
           mkdir -p dist out
           go build -o dist/ \
@@ -255,29 +213,8 @@ jobs:
       - name: Build dependencies
         run: make deps
       
-      - name: Build generate-all
-        run: make generate-all
-      
-      - name: Setup node and yarn
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-          cache: 'yarn'
-          cache-dependency-path: 'ui/yarn.lock'
-      
-      - name: Install Yarn
-        run: |
-          npm install -g yarn
-      
-      - name: UI Build
-        run: |
-          cd ui
-          yarn install --network-timeout 300000
-          yarn --verbose run build
-          cd ..
-      
-      - name: Build static assets
-        run: make static-assets
+      - name: Build prerelease
+        run: make prerelease
       
       - name: Build
         env:
@@ -285,7 +222,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           GO_TAGS: "${{ env.GO_TAGS }} netcgo"
           LD_FLAGS: ${{ needs.set-ld-flags.outputs.ldflags }}
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
         run: |
           mkdir -p dist out
           go build -o dist/ \
