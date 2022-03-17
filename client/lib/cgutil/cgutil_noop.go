@@ -15,8 +15,8 @@ const (
 // This is a read-only value.
 var UseV2 = false
 
-// NewCpusetManager creates a no-op CpusetManager for non-Linux operating systems.
-func NewCpusetManager(string, hclog.Logger) CpusetManager {
+// CreateCPUSetManager creates a no-op CpusetManager for non-Linux operating systems.
+func CreateCPUSetManager(string, hclog.Logger) CpusetManager {
 	return new(NoopCpusetManager)
 }
 
@@ -28,4 +28,9 @@ func FindCgroupMountpointDir() (string, error) {
 // GetCgroupParent returns nothing for non-Linux operating systems.
 func GetCgroupParent(string) string {
 	return DefaultCgroupParent
+}
+
+// GetCPUsFromCgroup returns nothing for non-Linux operating systems.
+func GetCPUsFromCgroup(string) ([]uint16, error) {
+	return nil, nil
 }
