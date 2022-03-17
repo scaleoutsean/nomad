@@ -173,10 +173,19 @@ jobs:
       
       - name: Build prerelease
         run: make prerelease
+      
+      - name: Set gcc
+        run: |
+          if [ "${{ matrix.goarch }}" == "arm" ]; then
+            echo "CC=arm-linux-gnueabihf-gcc" >> $GITHUB_ENV
+          elif [ "${{ matrix.goarch }}" == "arm64" ]; then
+            echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          fi
 
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
+          CC: ${{ env.CC }}
           GOARCH: ${{ matrix.goarch }}
           LD_FLAGS: ${{ needs.set-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
