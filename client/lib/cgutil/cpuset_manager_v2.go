@@ -20,9 +20,6 @@ import (
 )
 
 const (
-	// CgroupRoot is hard-coded in the cgroups specification.
-	CgroupRoot = "/sys/fs/cgroup"
-
 	// CreationPID is a special PID in libcontainer used to denote a cgroup
 	// should be created, but with no process added.
 	CreationPID = -1

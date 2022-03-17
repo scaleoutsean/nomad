@@ -1,3 +1,5 @@
+//go:build linux
+
 package docker
 
 import (
@@ -15,6 +17,10 @@ import (
 const (
 	cpusetReconcileInterval = 1 * time.Second
 )
+
+type CpusetFixer interface {
+	Start()
+}
 
 // cpusetFixer adjusts the cpuset.cpus cgroup value to the assigned value by Nomad.
 //
@@ -35,7 +41,7 @@ type cpusetFixer struct {
 	tasks    func() map[coordinate]struct{}
 }
 
-func newCpusetFixer(d *Driver) *cpusetFixer {
+func newCpusetFixer(d *Driver) CpusetFixer {
 	return &cpusetFixer{
 		interval: cpusetReconcileInterval,
 		ctx:      d.ctx,

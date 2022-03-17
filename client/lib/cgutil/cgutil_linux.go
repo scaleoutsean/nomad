@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/helper/uuid"
@@ -45,17 +44,6 @@ func GetCPUsFromCgroup(group string) ([]uint16, error) {
 		return getCPUsFromCgroupV2(getParentV2(group))
 	}
 	return getCPUsFromCgroupV1(getParentV1(group))
-}
-
-// SplitPath determines the parent and cgroup from p.
-// p must contain at least 2 elements (parent + cgroup).
-//
-// Handles the cgroup root if present.
-func SplitPath(p string) (string, string) {
-	p = strings.TrimPrefix(p, CgroupRoot)
-	p = strings.Trim(p, "/")
-	parts := strings.Split(p, string(os.PathSeparator))
-	return parts[0], "/" + filepath.Join(parts[1:]...)
 }
 
 // CgroupScope returns the name of the scope for Nomad's managed cgroups for

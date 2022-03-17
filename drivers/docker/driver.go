@@ -31,7 +31,6 @@ import (
 	"github.com/hashicorp/nomad/plugins/base"
 	"github.com/hashicorp/nomad/plugins/drivers"
 	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/ryanuber/go-glob"
 )
 
@@ -125,7 +124,7 @@ type Driver struct {
 	detectedLock sync.RWMutex
 
 	danglingReconciler *containerReconciler
-	cpusetFixer        *cpusetFixer
+	cpusetFixer        CpusetFixer
 }
 
 // NewDockerDriver returns a docker implementation of a driver plugin
@@ -1207,9 +1206,10 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 	config.Env = task.EnvList()
 
 	containerName := fmt.Sprintf("%s-%s", strings.ReplaceAll(task.Name, "/", "_"), task.AllocID)
-	if cgroups.IsCgroup2UnifiedMode() {
-		containerName = fmt.Sprintf("%s.%s.scope", task.AllocID, task.Name)
-	}
+	// todo: remove
+	//if cgroups.IsCgroup2UnifiedMode() {
+	//	containerName = fmt.Sprintf("%s.%s.scope", task.AllocID, task.Name)
+	//}
 	logger.Info("setting container name", "container_name", containerName)
 
 	var networkingConfig *docker.NetworkingConfig
