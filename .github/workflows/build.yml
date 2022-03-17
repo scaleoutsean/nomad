@@ -174,6 +174,17 @@ jobs:
       - name: Build prerelease
         run: make prerelease
       
+      - name: Install Linux build utilties
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            binutils-aarch64-linux-gnu \
+            binutils-arm-linux-gnueabihf \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabihf \
+            gcc-multilib-arm-linux-gnueabihf
+          sudo apt-get upgrade -y
+
       - name: Set gcc
         run: |
           if [ "${{ matrix.goarch }}" == "arm" ]; then
