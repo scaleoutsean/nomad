@@ -3,6 +3,8 @@
 
 package cgutil
 
+import "github.com/hashicorp/go-hclog"
+
 const (
 	// DefaultCgroupParent does not apply to non-Linux operating systems.
 	DefaultCgroupParent = ""

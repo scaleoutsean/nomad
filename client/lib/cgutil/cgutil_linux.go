@@ -85,7 +85,7 @@ func ConfigureBasicCgroups(config *lcc.Config) error {
 
 	// In V1 we must setup the freezer cgroup ourselves
 	subsystem := "freezer"
-	path, err := getCgroupPathHelperV1(subsystem, filepath.Join(DefaultCgroupV1Parent, id))
+	path, err := GetCgroupPathHelperV1(subsystem, filepath.Join(DefaultCgroupV1Parent, id))
 	if err != nil {
 		return fmt.Errorf("failed to find %s cgroup mountpoint: %v", subsystem, err)
 	}

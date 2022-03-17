@@ -135,7 +135,7 @@ type allocTaskCgroupInfo map[string]*TaskCgroupInfo
 // cgroup is initialized.
 func (c *cpusetManagerV1) Init(_ []uint16) error {
 	fmt.Println("Init")
-	cgroupParentPath, err := getCgroupPathHelperV1("cpuset", c.cgroupParent)
+	cgroupParentPath, err := GetCgroupPathHelperV1("cpuset", c.cgroupParent)
 	if err != nil {
 		return err
 	}
@@ -321,7 +321,7 @@ func (c *cpusetManagerV1) reservedCpusetPath() string {
 }
 
 func getCPUsFromCgroupV1(group string) ([]uint16, error) {
-	cgroupPath, err := getCgroupPathHelperV1("cpuset", group)
+	cgroupPath, err := GetCgroupPathHelperV1("cpuset", group)
 	if err != nil {
 		return nil, err
 	}
@@ -407,7 +407,7 @@ func isEmptyCpusetV1(str string) bool {
 	return str == "" || str == "\n"
 }
 
-func getCgroupPathHelperV1(subsystem, cgroup string) (string, error) {
+func GetCgroupPathHelperV1(subsystem, cgroup string) (string, error) {
 	mnt, root, err := cgroups.FindCgroupMountpointAndRoot("", subsystem)
 	if err != nil {
 		return "", err

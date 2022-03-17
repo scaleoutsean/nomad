@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/client/allocdir"
+	"github.com/hashicorp/nomad/client/lib/cgutil"
 	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/client/testutil"
 	"github.com/hashicorp/nomad/drivers/shared/capabilities"
@@ -390,7 +391,7 @@ func TestExecutor_CgroupPathsAreDestroyed(t *testing.T) {
 			continue
 		}
 
-		p, err := getCgroupPathHelper(subsystem, cgroup)
+		p, err := cgutil.GetCgroupPathHelperV1(subsystem, cgroup)
 		require.NoError(err)
 		require.Falsef(cgroups.PathExists(p), "cgroup for %s %s still exists", subsystem, cgroup)
 	}
