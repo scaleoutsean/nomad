@@ -38,7 +38,7 @@ func tmpCpusetManagerV1(t *testing.T) (manager *cpusetManagerV1, cleanup func())
 }
 
 func TestCpusetManager_V1_Init(t *testing.T) {
-	testutil.CgroupV1Compatible(t)
+	testutil.CgroupsCompatibleV1(t)
 
 	manager, cleanup := tmpCpusetManagerV1(t)
 	defer cleanup()
@@ -55,7 +55,7 @@ func TestCpusetManager_V1_Init(t *testing.T) {
 }
 
 func TestCpusetManager_V1_AddAlloc_single(t *testing.T) {
-	testutil.CgroupV1Compatible(t)
+	testutil.CgroupsCompatibleV1(t)
 
 	manager, cleanup := tmpCpusetManagerV1(t)
 	defer cleanup()
@@ -104,13 +104,13 @@ func TestCpusetManager_V1_AddAlloc_single(t *testing.T) {
 }
 
 func TestCpusetManager_V1_AddAlloc_subset(t *testing.T) {
-	testutil.CgroupV1Compatible(t)
+	testutil.CgroupsCompatibleV1(t)
 
 	t.Skip("todo: add test for #11933")
 }
 
 func TestCpusetManager_V1_AddAlloc_all(t *testing.T) {
-	testutil.CgroupV1Compatible(t)
+	testutil.CgroupsCompatibleV1(t)
 
 	// cgroupsv2 changes behavior of writing empty cpuset.cpu, which is what
 	// happens to the /shared group when one or more allocs consume all available
@@ -119,7 +119,7 @@ func TestCpusetManager_V1_AddAlloc_all(t *testing.T) {
 }
 
 func TestCpusetManager_V1_RemoveAlloc(t *testing.T) {
-	testutil.CgroupV1Compatible(t)
+	testutil.CgroupsCompatibleV1(t)
 
 	manager, cleanup := tmpCpusetManagerV1(t)
 	defer cleanup()

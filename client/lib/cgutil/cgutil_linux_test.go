@@ -38,7 +38,7 @@ func TestUtil_GetCgroupParent(t *testing.T) {
 	ci.Parallel(t)
 
 	t.Run("v1", func(t *testing.T) {
-		testutil.CgroupV1Compatible(t)
+		testutil.CgroupsCompatibleV1(t)
 		t.Run("default", func(t *testing.T) {
 			exp := "/nomad"
 			parent := GetCgroupParent("")
@@ -53,7 +53,7 @@ func TestUtil_GetCgroupParent(t *testing.T) {
 	})
 
 	t.Run("v2", func(t *testing.T) {
-		testutil.CgroupV2Compatible(t)
+		testutil.CgroupsCompatibleV2(t)
 		t.Run("default", func(t *testing.T) {
 			exp := "nomad.slice"
 			parent := GetCgroupParent("")
@@ -74,7 +74,7 @@ func TestUtil_CreateCPUSetManager(t *testing.T) {
 	logger := testlog.HCLogger(t)
 
 	t.Run("v1", func(t *testing.T) {
-		testutil.CgroupV1Compatible(t)
+		testutil.CgroupsCompatibleV1(t)
 		parent := "/" + uuid.Short()
 		manager := CreateCPUSetManager(parent, logger)
 		err := manager.Init([]uint16{0})
@@ -83,7 +83,7 @@ func TestUtil_CreateCPUSetManager(t *testing.T) {
 	})
 
 	t.Run("v2", func(t *testing.T) {
-		testutil.CgroupV2Compatible(t)
+		testutil.CgroupsCompatibleV2(t)
 		parent := uuid.Short() + ".slice"
 		manager := CreateCPUSetManager(parent, logger)
 		err := manager.Init([]uint16{0})
@@ -96,7 +96,7 @@ func TestUtil_GetCPUsFromCgroup(t *testing.T) {
 	ci.Parallel(t)
 
 	t.Run("v2", func(t *testing.T) {
-		testutil.CgroupV2Compatible(t)
+		testutil.CgroupsCompatibleV2(t)
 		cpus, err := GetCPUsFromCgroup("system.slice") // thanks, systemd!
 		require.NoError(t, err)
 		require.NotEmpty(t, cpus)

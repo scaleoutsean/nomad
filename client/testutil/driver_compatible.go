@@ -44,7 +44,7 @@ func ExecCompatible(t *testing.T) {
 		t.Skip("Test requires root on Linux")
 	}
 
-	if !cgroupCompatible(t) {
+	if !CgroupsCompatible(t) {
 		t.Skip("Test requires cgroup support")
 	}
 }
@@ -64,7 +64,7 @@ func JavaCompatible(t *testing.T) {
 		t.Skip("Test requires root on Linux")
 	}
 
-	if !cgroupCompatible(t) {
+	if !CgroupsCompatible(t) {
 		t.Skip("Test requires cgroup support")
 	}
 }
@@ -84,20 +84,21 @@ func QemuCompatible(t *testing.T) {
 	}
 }
 
-func cgroupCompatible(t *testing.T) bool {
-	return cgroupV1Compatible(t) || cgroupV2Compatible(t)
+// CgroupsCompatible returns true if either cgroups.v1 or cgroups.v2 is supported.
+func CgroupsCompatible(t *testing.T) bool {
+	return cgroupsCompatibleV1(t) || cgroupsCompatibleV2(t)
 }
 
-// CgroupV1Compatible skips tests unless:
+// CgroupsCompatibleV1 skips tests unless:
 // - cgroup.v1 mount point is detected
-func CgroupV1Compatible(t *testing.T) {
-	if !cgroupV1Compatible(t) {
+func CgroupsCompatibleV1(t *testing.T) {
+	if !cgroupsCompatibleV1(t) {
 		t.Skipf("Test requires cgroup.v1 support")
 	}
 }
 
-func cgroupV1Compatible(t *testing.T) bool {
-	if cgroupV2Compatible(t) {
+func cgroupsCompatibleV1(t *testing.T) bool {
+	if cgroupsCompatibleV2(t) {
 		t.Log("No cgroup.v1 mount point: running in cgroup.v2 mode")
 		return false
 	}
@@ -113,15 +114,15 @@ func cgroupV1Compatible(t *testing.T) bool {
 	return true
 }
 
-// CgroupV2Compatible skips tests unless:
+// CgroupsCompatibleV2 skips tests unless:
 // - cgroup.v2 unified mode is detected
-func CgroupV2Compatible(t *testing.T) {
-	if !cgroupV2Compatible(t) {
+func CgroupsCompatibleV2(t *testing.T) {
+	if !cgroupsCompatibleV2(t) {
 		t.Skip("Test requires cgroup.v2 support")
 	}
 }
 
-func cgroupV2Compatible(t *testing.T) bool {
+func cgroupsCompatibleV2(t *testing.T) bool {
 	if cgroups.IsCgroup2UnifiedMode() {
 		return true
 	}
