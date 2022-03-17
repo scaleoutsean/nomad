@@ -31,7 +31,7 @@ func tmpCpusetManagerV1(t *testing.T) (manager *cpusetManagerV1, cleanup func())
 		logger:       testlog.HCLogger(t),
 	}
 
-	parentPath, err := getCgroupPathHelperV1("cpuset", parent)
+	parentPath, err := GetCgroupPathHelperV1("cpuset", parent)
 	require.NoError(t, err)
 
 	return manager, func() { require.NoError(t, cgroups.RemovePaths(map[string]string{"cpuset": parentPath})) }
