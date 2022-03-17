@@ -177,6 +177,13 @@ jobs:
       - name: Install Linux build utilties
         run: |
           sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y \
+            libc6-dev-i386 \
+            libpcre3-dev \
+            linux-libc-dev:i386 
           sudo apt-get install -y \
             binutils-aarch64-linux-gnu \
             binutils-arm-linux-gnueabihf \
