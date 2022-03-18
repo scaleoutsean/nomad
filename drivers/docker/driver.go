@@ -1206,10 +1206,6 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 	config.Env = task.EnvList()
 
 	containerName := fmt.Sprintf("%s-%s", strings.ReplaceAll(task.Name, "/", "_"), task.AllocID)
-	// todo: remove
-	//if cgroups.IsCgroup2UnifiedMode() {
-	//	containerName = fmt.Sprintf("%s.%s.scope", task.AllocID, task.Name)
-	//}
 	logger.Info("setting container name", "container_name", containerName)
 
 	var networkingConfig *docker.NetworkingConfig
