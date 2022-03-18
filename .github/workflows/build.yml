@@ -109,21 +109,7 @@ jobs:
         run: make prerelease
       
       - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          LD_FLAGS: ${{ needs.set-ld-flags.outputs.ldflags }}
-          CGO_ENABLED: 1
-        run: |
-          mkdir -p dist out
-          go build -o dist/ \
-          -ldflags "${{ env.LD_FLAGS }}" \
-          -tags "${{ env.GO_TAGS }}"
-          make pkg/${{ matrix.goos }}/${{ matrix.goarch }}.zip
-      - uses: actions/upload-artifact@v2
-        with:
-          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
-          path: out/${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+        run: make pkg/${{ matrix.goos }}/${{ matrix.goarch }}.zip
    
   build-linux:
     needs: [ get-go-version, get-product-version, set-ld-flags ]
@@ -187,22 +173,8 @@ jobs:
           fi
 
       - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          CC: ${{ env.CC }}
-          GOARCH: ${{ matrix.goarch }}
-          LD_FLAGS: ${{ needs.set-ld-flags.outputs.ldflags }}
-          CGO_ENABLED: 1
-        run: |
-          mkdir -p dist out
-          go build -o dist/ \
-          -ldflags "${{ env.LD_FLAGS }}" \
-          -tags "${{ env.GO_TAGS }}"
-          make pkg/${{ matrix.goos }}/${{ matrix.goarch }}.zip
-      - uses: actions/upload-artifact@v2
-        with:
-          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
-          path: out/${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+        run: make pkg/${{ matrix.goos }}/${{ matrix.goarch }}.zip
+
 
       - name: Package
         if: ${{ matrix.goos == 'linux' }}
@@ -277,22 +249,7 @@ jobs:
         run: make prerelease
       
       - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          GO_TAGS: "${{ env.GO_TAGS }} netcgo"
-          LD_FLAGS: ${{ needs.set-ld-flags.outputs.ldflags }}
-          CGO_ENABLED: 1
-        run: |
-          mkdir -p dist out
-          go build -o dist/ \
-          -ldflags "${{ env.LD_FLAGS }}" \
-          -tags "${{ env.GO_TAGS }}"
-          make pkg/${{ matrix.goos }}/${{ matrix.goarch }}.zip
-      - uses: actions/upload-artifact@v2
-        with:
-          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
-          path: out/${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+        run: make pkg/${{ matrix.goos }}/${{ matrix.goarch }}.zip
 
   # This placed here for when the Nomad team is ready to build docker images. 
   # Please reach out the RDX team for assistance or refer to the CRT Self-Serve Onboarding doc. 
