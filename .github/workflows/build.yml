@@ -58,7 +58,7 @@ jobs:
         with:
           name: metadata.json
           path: ${{ steps.generate-metadata-file.outputs.filepath }}
-  set-ld-flags:
+  generate-ld-flags:
     needs: get-product-version
     runs-on: ubuntu-latest
     outputs:
@@ -71,11 +71,10 @@ jobs:
           project="$(go list -m)"
           sha="$(git rev-parse --short HEAD)"
           echo "::set-output name=ldflags::"-s -w -X \'$project/version.Name=${{ env.PKG_NAME }}\' \
-          -X \'$project/version.GitCommit=$sha\' \
           -X \'$project/version.GitDescribe=v$(make version base=1)\'""
   
   build-other:
-    needs: [ get-go-version, get-product-version, set-ld-flags ]
+    needs: [ get-go-version, get-product-version, generate-ld-flags ]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -84,13 +83,14 @@ jobs:
       fail-fast: true
 
     name: Go ${{ needs.get-go-version.outputs.go-version }} ${{ matrix.goos }} ${{ matrix.goarch }} build
+
     steps:
       - uses: actions/checkout@v2
       - name: Setup go
         uses: actions/setup-go@v2
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
-    
+ 
       - name: Build dependencies
         run: make deps
       
@@ -98,21 +98,22 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '14'
-          cache: 'yarn'
           cache-dependency-path: 'ui/yarn.lock'
-
-      - name: Install Yarn
-        run: |
-          npm install -g yarn
 
       - name: Build prerelease
         run: make prerelease
       
       - name: Build
-        run: make pkg/${{ matrix.goos }}/${{ matrix.goarch }}.zip
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GO_TAGS: "${{ env.GO_TAGS }} netcgo"
+          GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
+          CGO_ENABLED: 1
+        run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
    
   build-linux:
-    needs: [ get-go-version, get-product-version, set-ld-flags ]
+    needs: [ get-go-version, get-product-version, generate-ld-flags ]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -128,7 +129,7 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
-      
+     
       - name: Build dependencies
         run: make deps
       
@@ -136,12 +137,7 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '14'
-          cache: 'yarn'
           cache-dependency-path: 'ui/yarn.lock'
-
-      - name: Install Yarn
-        run: |
-          npm install -g yarn   
       
       - name: Build prerelease
         run: make prerelease
@@ -173,8 +169,13 @@ jobs:
           fi
 
       - name: Build
-        run: make pkg/${{ matrix.goos }}/${{ matrix.goarch }}.zip
-
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GO_TAGS: "${{ env.GO_TAGS }} netcgo"
+          GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
+          CGO_ENABLED: 1
+        run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
 
       - name: Package
         if: ${{ matrix.goos == 'linux' }}
@@ -213,7 +214,7 @@ jobs:
           path: out/${{ env.DEB_PACKAGE }}
 
   build-darwin:
-    needs: [ get-go-version, get-product-version, set-ld-flags ]
+    needs: [ get-go-version, get-product-version, generate-ld-flags ]
     runs-on: macos-latest
     strategy:
       matrix:
@@ -230,7 +231,7 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
-      
+
       - name: Build dependencies
         run: make deps
       
@@ -238,18 +239,19 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '14'
-          cache: 'yarn'
           cache-dependency-path: 'ui/yarn.lock'
-
-      - name: Install Yarn
-        run: |
-          npm install -g yarn
            
       - name: Build prerelease
         run: make prerelease
       
       - name: Build
-        run: make pkg/${{ matrix.goos }}/${{ matrix.goarch }}.zip
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GO_TAGS: "${{ env.GO_TAGS }} netcgo"
+          GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
+          CGO_ENABLED: 1
+        run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
 
   # This placed here for when the Nomad team is ready to build docker images. 
   # Please reach out the RDX team for assistance or refer to the CRT Self-Serve Onboarding doc. 
