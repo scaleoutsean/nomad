@@ -5,6 +5,7 @@ package testutil
 import (
 	"testing"
 
+	"github.com/hashicorp/nomad/client/lib/cgutil"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 )
 
@@ -47,8 +48,5 @@ func CgroupsCompatibleV2(t *testing.T) {
 }
 
 func cgroupsCompatibleV2(t *testing.T) bool {
-	if cgroups.IsCgroup2UnifiedMode() {
-		return true
-	}
-	return false
+	return cgutil.UseV2
 }
