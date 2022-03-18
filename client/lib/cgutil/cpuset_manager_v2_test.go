@@ -34,7 +34,7 @@ func TestCpusetManager_V2_AddAlloc(t *testing.T) {
 	manager := NewCpusetManagerV2(parent, logger)
 	require.NoError(t, manager.Init(systemCores))
 
-	// add our first alloc, reserving 1 core
+	// add our first alloc, isolating 1 core
 	t.Run("first", func(t *testing.T) {
 		alloc := mock.Alloc()
 		alloc.AllocatedResources.Tasks["web"].Cpu.ReservedCores = cpuset.New(0).ToSlice()
@@ -42,7 +42,7 @@ func TestCpusetManager_V2_AddAlloc(t *testing.T) {
 		cpusetIs(t, "0-1", parent, alloc.ID, "web")
 	})
 
-	// add second alloc, reserving 1 core
+	// add second alloc, isolating 1 core
 	t.Run("second", func(t *testing.T) {
 		alloc := mock.Alloc()
 		alloc.AllocatedResources.Tasks["web"].Cpu.ReservedCores = cpuset.New(1).ToSlice()

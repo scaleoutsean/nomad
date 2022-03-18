@@ -64,11 +64,11 @@ type TaskCgroupInfo struct {
 	Error              error
 }
 
-func makeID(allocID, task string) string {
+func makeID(allocID, task string) identity {
 	return fmt.Sprintf("%s.%s", allocID, task)
 }
 
-func makeScope(id string) string {
+func makeScope(id identity) string {
 	return id + ".scope"
 }
 

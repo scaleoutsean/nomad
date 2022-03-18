@@ -663,19 +663,17 @@ func (c *Client) init() error {
 			// otherwise lookup the effective cores from the parent cgroup
 			cores, _ = cgutil.GetCPUsFromCgroup(c.config.CgroupParent)
 		}
-		cpuErr := c.cpusetManager.Init(cores)
-		if cpuErr != nil {
-			// if the client cannot initialize the cgroup then reserved cores will not be reported and the cpuset manager
-			// will be disabled. this is common when running in dev mode under a non-root user for example
-			c.logger.Warn("could not initialize cpuset cgroup subsystem, cpuset management disabled", "error", cpuErr)
+		if cpuErr := c.cpusetManager.Init(cores); cpuErr != nil {
+			// If the client cannot initialize the cgroup then reserved cores will not be reported and the cpuset manager
+			// will be disabled. this is common when running in dev mode under a non-root user for example.
+			c.logger.Warn("failed to initialize cpuset cgroup subsystem, cpuset management disabled", "error", cpuErr)
 			c.cpusetManager = new(cgutil.NoopCpusetManager)
 		}
 	}
 	return nil
 }
 
-// reloadTLSConnections allows a client to reload its TLS configuration on the
-// fly
+// reloadTLSConnections allows a client to reload its TLS configuration on the fly
 func (c *Client) reloadTLSConnections(newConfig *nconfig.TLSConfig) error {
 	var tlsWrap tlsutil.RegionWrapper
 	if newConfig != nil && newConfig.EnableRPC {
