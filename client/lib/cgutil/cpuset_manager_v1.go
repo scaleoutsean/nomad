@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/lib/cpuset"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
@@ -107,15 +108,21 @@ func (c *cpusetManagerV1) CgroupPathFor(allocID, task string) CgroupPathGetter {
 			return "", fmt.Errorf("task %q not found", task)
 		}
 
+		timer, stop := helper.NewSafeTimer(0)
+		defer stop()
+
 		for {
+
 			if taskInfo.Error != nil {
 				break
 			}
+
+			timer.Reset(100 * time.Millisecond)
 			if _, err := os.Stat(taskInfo.CgroupPath); os.IsNotExist(err) {
 				select {
 				case <-ctx.Done():
 					return taskInfo.CgroupPath, ctx.Err()
-				case <-time.After(100 * time.Millisecond):
+				case <-timer.C:
 					continue
 				}
 			}
