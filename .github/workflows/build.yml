@@ -99,6 +99,10 @@ jobs:
         with:
           node-version: '14'
           cache-dependency-path: 'ui/yarn.lock'
+      
+      - name: Install Yarn
+        run: |
+          npm install -g yarn
 
       - name: Build prerelease
         run: make prerelease
@@ -107,10 +111,14 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          GO_TAGS: "${{ env.GO_TAGS }} netcgo"
+          GO_TAGS: "${{ env.GO_TAGS }}"
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
         run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: out/${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
    
   build-linux:
     needs: [ get-go-version, get-product-version, generate-ld-flags ]
@@ -138,6 +146,10 @@ jobs:
         with:
           node-version: '14'
           cache-dependency-path: 'ui/yarn.lock'
+      
+      - name: Install Yarn
+        run: |
+          npm install -g yarn
       
       - name: Build prerelease
         run: make prerelease
@@ -172,10 +184,14 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          GO_TAGS: "${{ env.GO_TAGS }} netcgo"
+          GO_TAGS: "${{ env.GO_TAGS }}"
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
         run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: out/${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
 
       - name: Package
         if: ${{ matrix.goos == 'linux' }}
@@ -240,6 +256,10 @@ jobs:
         with:
           node-version: '14'
           cache-dependency-path: 'ui/yarn.lock'
+      
+      - name: Install Yarn
+        run: |
+          npm install -g yarn
            
       - name: Build prerelease
         run: make prerelease
@@ -252,6 +272,10 @@ jobs:
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
         run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: out/${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
 
   # This placed here for when the Nomad team is ready to build docker images. 
   # Please reach out the RDX team for assistance or refer to the CRT Self-Serve Onboarding doc. 
