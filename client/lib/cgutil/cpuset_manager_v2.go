@@ -37,10 +37,6 @@ const (
 	rootless = false
 )
 
-// identity is the "<allocID>.<taskName>" string that uniquely identifies an
-// individual instance of a task within the flat cgroup namespace
-type identity string
-
 // nothing is used for treating a map like a set with no values
 type nothing struct{}
 

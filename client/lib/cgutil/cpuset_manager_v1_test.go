@@ -103,21 +103,6 @@ func TestCpusetManager_V1_AddAlloc_single(t *testing.T) {
 	require.Exactly(t, alloc.AllocatedResources.Tasks["web"].Cpu.ReservedCores, taskCpus.ToSlice())
 }
 
-func TestCpusetManager_V1_AddAlloc_subset(t *testing.T) {
-	testutil.CgroupsCompatibleV1(t)
-
-	t.Skip("todo: add test for #11933")
-}
-
-func TestCpusetManager_V1_AddAlloc_all(t *testing.T) {
-	testutil.CgroupsCompatibleV1(t)
-
-	// cgroupsv2 changes behavior of writing empty cpuset.cpu, which is what
-	// happens to the /shared group when one or more allocs consume all available
-	// cores.
-	t.Skip("todo: add test for #11933")
-}
-
 func TestCpusetManager_V1_RemoveAlloc(t *testing.T) {
 	testutil.CgroupsCompatibleV1(t)
 

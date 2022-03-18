@@ -64,6 +64,10 @@ type TaskCgroupInfo struct {
 	Error              error
 }
 
+// identity is the "<allocID>.<taskName>" string that uniquely identifies an
+// individual instance of a task within the flat cgroup namespace
+type identity string
+
 func makeID(allocID, task string) identity {
 	return identity(fmt.Sprintf("%s.%s", allocID, task))
 }
