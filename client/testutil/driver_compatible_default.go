@@ -7,8 +7,8 @@ import (
 )
 
 // CgroupsCompatible returns false on non-Linux operating systems.
-func CgroupsCompatible(t *testing.T) bool {
-	return false
+func CgroupsCompatible(t *testing.T) {
+	t.Skipf("Test requires cgroups support on Linux")
 }
 
 // CgroupsCompatibleV1 skips tests on non-Linux operating systems.

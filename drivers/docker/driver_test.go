@@ -1507,7 +1507,7 @@ func TestDockerDriver_Init(t *testing.T) {
 func TestDockerDriver_CPUSetCPUs(t *testing.T) {
 	ci.Parallel(t)
 	testutil.DockerCompatible(t)
-	testutil.CgroupsCompatible(t)
+	testutil.CgroupsCompatible()
 
 	testCases := []struct {
 		Name       string
