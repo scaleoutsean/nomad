@@ -115,6 +115,12 @@ jobs:
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
         run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+        
+        
  
   build-linux:
     needs: [ get-go-version, get-product-version, generate-ld-flags ]
@@ -184,6 +190,10 @@ jobs:
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
         run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
     
       - name: Package
         if: ${{ matrix.goos == 'linux' }}
@@ -264,6 +274,10 @@ jobs:
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
         run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
 
   # This placed here for when the Nomad team is ready to build docker images. 
   # Please reach out the RDX team for assistance or refer to the CRT Self-Serve Onboarding doc. 
