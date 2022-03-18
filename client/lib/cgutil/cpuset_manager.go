@@ -65,11 +65,11 @@ type TaskCgroupInfo struct {
 }
 
 func makeID(allocID, task string) identity {
-	return fmt.Sprintf("%s.%s", allocID, task)
+	return identity(fmt.Sprintf("%s.%s", allocID, task))
 }
 
 func makeScope(id identity) string {
-	return id + ".scope"
+	return string(id) + ".scope"
 }
 
 // SplitPath determines the parent and cgroup from p.
