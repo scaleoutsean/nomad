@@ -70,7 +70,7 @@ func NewCpusetManagerV2(parent string, logger hclog.Logger) CpusetManager {
 }
 
 func (c *cpusetManagerV2) Init(cores []uint16) error {
-	c.logger.Info("initializing with", "cores", cores)
+	c.logger.Debug("initializing with", "cores", cores)
 	if err := c.ensureParent(); err != nil {
 		c.logger.Error("failed to init cpuset manager", "err", err)
 		return err
@@ -83,7 +83,6 @@ func (c *cpusetManagerV2) AddAlloc(alloc *structs.Allocation) {
 	if alloc == nil || alloc.AllocatedResources == nil {
 		return
 	}
-
 	c.logger.Trace("add allocation", "name", alloc.Name, "id", alloc.ID)
 
 	// grab write lock while we recompute and apply changes
@@ -110,7 +109,7 @@ func (c *cpusetManagerV2) AddAlloc(alloc *structs.Allocation) {
 }
 
 func (c *cpusetManagerV2) RemoveAlloc(allocID string) {
-	c.logger.Info("remove allocation", "id", allocID)
+	c.logger.Trace("remove allocation", "id", allocID)
 
 	// grab write lock while we recompute and apply changes.
 	c.lock.Lock()
@@ -152,11 +151,8 @@ func (c *cpusetManagerV2) recalculate() {
 }
 
 func (c *cpusetManagerV2) CgroupPathFor(allocID, task string) CgroupPathGetter {
-	c.logger.Info("cgroup path for", "id", allocID, "task", task)
-
 	// The CgroupPathFor implementation must block until cgroup for allocID.task
 	// exists [and can accept a PID].
-
 	return func(ctx context.Context) (string, error) {
 		ticks, cancel := helper.NewSafeTimer(100 * time.Millisecond)
 		defer cancel()
@@ -294,7 +290,7 @@ func (c *cpusetManagerV2) ensureParent() error {
 		return err
 	}
 
-	c.logger.Debug("established initial cgroup hierarchy", "parent", c.parent)
+	c.logger.Trace("establish cgroup hierarchy", "parent", c.parent)
 	return nil
 }
 

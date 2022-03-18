@@ -531,8 +531,6 @@ func TestExecutor_Start_Kill_Immediately_NoGrace(t *testing.T) {
 			executor := factory.new(testlog.HCLogger(t))
 			defer executor.Shutdown("", 0)
 
-			fmt.Println("execCmd.ResourceLimits:", execCmd.ResourceLimits)
-
 			ps, err := executor.Launch(execCmd)
 			require.NoError(err)
 			require.NotZero(ps.Pid)
@@ -568,8 +566,6 @@ func TestExecutor_Start_Kill_Immediately_WithGrace(t *testing.T) {
 			defer allocDir.Destroy()
 			executor := factory.new(testlog.HCLogger(t))
 			defer executor.Shutdown("", 0)
-
-			fmt.Println("execCmd.ResourceLimits:", execCmd.ResourceLimits)
 
 			ps, err := executor.Launch(execCmd)
 			require.NoError(err)
