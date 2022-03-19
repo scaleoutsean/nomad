@@ -4,6 +4,7 @@ package cgutil
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -280,12 +281,15 @@ func (c *cpusetManagerV2) write(id identity, set cpuset.CPUSet) {
 // ensureParentCgroup will create parent cgroup for the manager if it does not
 // exist yet. No PIDs are added to any cgroup yet.
 func (c *cpusetManagerV2) ensureParent() error {
+	fmt.Println("p parentAbs:", c.parentAbs)
 	mgr, err := fs2.NewManager(nil, c.parentAbs, rootless)
 	if err != nil {
+		fmt.Println("A err:", err)
 		return err
 	}
 
 	if err = mgr.Apply(CreationPID); err != nil {
+		fmt.Println("B err:", err)
 		return err
 	}
 

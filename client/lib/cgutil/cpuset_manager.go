@@ -11,11 +11,13 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
-const (
-	// CgroupRoot is hard-coded in the cgroups specification.
-	// It only applies to linux but helpers have references to it in driver(s).
-	CgroupRoot = "/sys/fs/cgroup"
-)
+// CgroupRoot is encoded in the cgroups specification.
+//
+// It only applies to Linux but there may be references to it in drivers.
+//
+// This value is read only, but may be modified by setting NOMAD_CGROUP_V2_ROOT
+// for testing purposes (i.e. undocumented feature).
+var CgroupRoot = "/sys/fs/cgroup"
 
 // CpusetManager is used to setup cpuset cgroups for each task.
 type CpusetManager interface {

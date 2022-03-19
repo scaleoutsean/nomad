@@ -13,12 +13,28 @@ import (
 	lcc "github.com/opencontainers/runc/libcontainer/configs"
 )
 
+// In CI testing there are not yet runners available with v2 as the default, but
+// we can take advantage of hybrid mode and pretend like the system is in v2 mode
+// by setting NOMAD_CGROUP_V2_ROOT.
+//
+// The downside is we can no longer refer to IsCgroup2UnifiedMode anywhere in Nomad
+// code, and docker / other drivers will also need to be reconfigured.
+func init() {
+	if override := os.Getenv("NOMAD_CGROUP_V2_ROOT"); override != "" {
+		CgroupRoot = override
+		UseV2 = true
+	} else {
+		UseV2 = cgroups.IsCgroup2UnifiedMode()
+	}
+	fmt.Println("INIT, root:", CgroupRoot, "v2:", UseV2)
+}
+
 // UseV2 indicates whether only cgroups.v2 is enabled. If cgroups.v2 is not
 // enabled or is running in hybrid mode with cgroups.v1, Nomad will make use of
 // cgroups.v1
 //
 // This is a read-only value.
-var UseV2 = cgroups.IsCgroup2UnifiedMode()
+var UseV2 bool
 
 // GetCgroupParent returns the mount point under the root cgroup in which Nomad
 // will create cgroups. If parent is not set, an appropriate name for the version
