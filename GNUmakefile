@@ -412,3 +412,8 @@ ui-screenshots:
 ui-screenshots-local:
 	@echo "==> Collecting UI screenshots (local)..."
 	@cd scripts/screenshots/src && SCREENSHOTS_DIR="../screenshots" node index.js
+
+.PHONY: missing
+missing:
+	@echo "==> Checking for packages not being tested ..."
+	@go run -modfile tools/go.mod tools/missing/main.go .github/workflows/test-core.yaml
