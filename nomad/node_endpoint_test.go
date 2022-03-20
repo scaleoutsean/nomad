@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/nomad/acl"
 	"github.com/hashicorp/nomad/client"
 	"github.com/hashicorp/nomad/client/config"
@@ -3791,24 +3790,23 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 
 	// Check that allocs are running
 	var allocs []*structs.Allocation
-	allocsRunning := false
 	testutil.WaitForResult(func() (bool, error) {
 		allocs, err = srv.State().AllocsByJob(nil, job.Namespace, job.ID, true)
 		if err != nil {
 			return false, err
 		}
-		if len(allocs) == 2 {
-			allocsRunning = allocs[0].ClientStatus == structs.AllocClientStatusRunning &&
-				allocs[1].ClientStatus == structs.AllocClientStatusRunning
-		}
-		return allocsRunning, nil
+		return len(allocs) == 2 &&
+				allocs[0].ClientStatus == structs.AllocClientStatusRunning &&
+				allocs[1].ClientStatus == structs.AllocClientStatusRunning,
+			nil
 	}, func(err error) {
 		require.NoError(t, err, "error retrieving allocs %s", err)
 	})
 
 	require.NoError(t, err)
-	require.True(t, allocsRunning)
+	require.Len(t, allocs, 2)
 
+	// Get the alloc on the node we are going to disconnect
 	var alloc *structs.Allocation
 	for _, a := range allocs {
 		if a.NodeID == client1.NodeID() {
@@ -3825,32 +3823,30 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 
 	// Check that the node is disconnected
 	var outNode *structs.Node
-	clientDisconnected := false
 	testutil.WaitForResult(func() (bool, error) {
 		outNode, err = srv.State().NodeByID(nil, client1.NodeID())
 		if err != nil {
 			return false, err
 		}
-		clientDisconnected = outNode != nil && outNode.Status == structs.NodeStatusDisconnected
-		return clientDisconnected, nil
+		return outNode != nil && outNode.Status == structs.NodeStatusDisconnected, nil
 	}, func(err error) {
 		require.NoError(t, err, "error retrieving node %s", err)
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, outNode)
-	require.True(t, clientDisconnected)
+	require.Equal(t, structs.NodeStatusDisconnected, outNode.Status)
 
 	// Assert that eval with TriggeredBy MaxClientDisconnect exists
-	var evaluations []*structs.Evaluation
+	var evals []*structs.Evaluation
 	foundEval := false
 	testutil.WaitForResult(func() (bool, error) {
-		evaluations, err = srv.State().EvalsByJob(nil, job.Namespace, job.ID)
+		evals, err = srv.State().EvalsByJob(nil, job.Namespace, job.ID)
 		if err != nil {
 			return false, err
 		}
-		for _, resultEval := range evaluations {
-			if resultEval.TriggeredBy == structs.EvalTriggerMaxDisconnectTimeout {
+		for _, eval := range evals {
+			if eval.TriggeredBy == structs.EvalTriggerMaxDisconnectTimeout {
 				foundEval = true
 				break
 			}
@@ -3935,11 +3931,11 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	// Assert that eval with TriggeredBy EvalTriggerReconnect exists
 	foundEval = false
 	testutil.WaitForResult(func() (bool, error) {
-		evaluations, err = srv.State().EvalsByJob(nil, job.Namespace, job.ID)
+		evals, err = srv.State().EvalsByJob(nil, job.Namespace, job.ID)
 		if err != nil {
 			return false, err
 		}
-		for _, resultEval := range evaluations {
+		for _, resultEval := range evals {
 			if resultEval.TriggeredBy == structs.EvalTriggerReconnect && resultEval.WaitUntil.IsZero() {
 				foundEval = true
 				break
@@ -3952,105 +3948,45 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 
 	require.True(t, foundEval, "should create eval with trigger %s", structs.EvalTriggerReconnect)
 
-	var finalAllocs []*structs.Allocation
-	expectedFn := func(final []*structs.Allocation) error {
-		if len(final) == 0 {
-			return fmt.Errorf("final allocs are empty")
-		}
-		failedOnDisconnected := 0
-		runningOnDisconnected := 0
-		pendingOnDisconnected := 0
-		stopOnDisconnected := 0
-		failedOnConnected := 0
-		runningOnConnected := 0
-		pendingOnConnected := 0
-		stopOnConnected := 0
-		for _, falloc := range final {
-			switch falloc.NodeID {
-			case client1.NodeID():
-				switch falloc.ClientStatus {
-				case structs.AllocClientStatusFailed:
-					failedOnDisconnected++
-				case structs.AllocClientStatusRunning:
-					runningOnDisconnected++
-				case structs.AllocClientStatusPending:
-					pendingOnDisconnected++
-				}
-				if falloc.DesiredStatus == structs.AllocDesiredStatusStop {
-					stopOnDisconnected++
-				}
-				fmt.Printf("client1: %s - %s - %s\n", falloc.Name, falloc.ClientStatus, falloc.DesiredStatus)
-			case client2.NodeID():
-				switch falloc.ClientStatus {
-				case structs.AllocClientStatusFailed:
-					failedOnConnected++
-				case structs.AllocClientStatusRunning:
-					runningOnConnected++
-				case structs.AllocClientStatusPending:
-					pendingOnConnected++
-				}
-				if falloc.DesiredStatus == structs.AllocDesiredStatusStop {
-					stopOnConnected++
-				}
-				fmt.Printf("client2: %s - %s - %s\n", falloc.Name, falloc.ClientStatus, falloc.DesiredStatus)
-			}
-		}
-
-		var mErr *multierror.Error
-		if failedOnDisconnected != 1 {
-			return multierror.Append(mErr, fmt.Errorf("expected %d failed on disconnected node found %d", 1, failedOnDisconnected))
-		}
-		if runningOnDisconnected != 0 {
-			return multierror.Append(mErr, fmt.Errorf("expected %d running on disconnected node found %d", 0, runningOnDisconnected))
-		}
-		if pendingOnConnected != 0 {
-			return multierror.Append(mErr, fmt.Errorf("expected %d pending on disconnected node found %d", 0, pendingOnDisconnected))
-		}
-		if stopOnDisconnected != 0 {
-			return multierror.Append(mErr, fmt.Errorf("expected %d stop on disconnected node found %d", 0, stopOnDisconnected))
-		}
-
-		if failedOnConnected != 0 {
-			return multierror.Append(mErr, fmt.Errorf("expected %d failed on connected node found %d", 0, failedOnConnected))
-		}
-		if runningOnConnected != 2 {
-			return multierror.Append(mErr, fmt.Errorf("expected %d running on connected node found %d", 2, runningOnConnected))
-		}
-		if pendingOnConnected != 0 {
-			return multierror.Append(mErr, fmt.Errorf("expected %d pending on connected node found %d", 0, pendingOnConnected))
-		}
-		if stopOnConnected != 0 {
-			return multierror.Append(mErr, fmt.Errorf("expected %d stop on connected node found %d", 0, stopOnConnected))
-		}
-
-		return mErr.ErrorOrNil()
+	client1Expected := &expectedClientState{
+		T:          t,
+		server:     srv,
+		client:     client1,
+		clientName: "client1",
+		failed:     1,
+		pending:    0,
+		running:    0,
+		stop:       0,
 	}
 
-	// Wait a seconds for the scheduler to process.
-	//time.Sleep(10 * time.Second)
-	finalAsExpected := false
-	testutil.WaitForResult(func() (bool, error) {
-		finalAllocs, err = srv.State().AllocsByJob(nil, job.Namespace, job.ID, true)
-		if err != nil {
-			return false, err
-		}
-		err = expectedFn(finalAllocs)
-		if err != nil {
-			return false, err
-		}
-		finalAsExpected = true
-		return finalAsExpected, nil
-	}, func(err error) {
-		require.NoError(t, err, "error retrieving alloc %s", err)
-	})
+	client2Expected := &expectedClientState{
+		T:          t,
+		server:     srv,
+		client:     client2,
+		clientName: "client2",
+		failed:     0,
+		pending:    0,
+		running:    2,
+		stop:       0,
+	}
 
-	require.True(t, finalAsExpected)
+	require.NoError(t, client1Expected.asExpected())
+	require.NoError(t, client2Expected.asExpected())
 
-	// @@@@ DEBUG
-	// Log the number of evals
-	evaluations, err = srv.State().EvalsByJob(nil, job.Namespace, job.ID)
+	// Validate only the desired number of evals processed
+	evals, err = srv.State().EvalsByJob(nil, job.Namespace, job.ID)
 	require.NoError(t, err)
-	for _, resultEval := range evaluations {
-		fmt.Println(resultEval.TriggeredBy)
+	maxDisconnectCount := 0
+	reconnectCount := 0
+	for _, eval := range evals {
+		if eval.TriggeredBy == structs.EvalTriggerMaxDisconnectTimeout {
+			maxDisconnectCount++
+		}
+		if eval.TriggeredBy == structs.EvalTriggerReconnect {
+			reconnectCount++
+		}
 	}
+
+	require.Equal(t, 1, maxDisconnectCount)
+	require.Equal(t, 1, reconnectCount)
 }

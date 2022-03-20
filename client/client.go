@@ -1623,7 +1623,7 @@ func (c *Client) registerAndHeartbeat() {
 		// If test instrumentation is enabled skip heartbeating
 		if c.failHeartbeat {
 			c.logger.Trace("failing heartbeat per test config")
-			time.Sleep(devModeRetryIntv)
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		select {
