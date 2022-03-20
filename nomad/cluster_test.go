@@ -135,6 +135,39 @@ func (tc *TestCluster) FailTask(clientName, allocID, taskName, taskEvent string)
 	return client.FailTask(testClient, allocID, taskName, taskEvent)
 }
 
+func (tc *TestCluster) WaitForJobAllocsRunning(job *structs.Job, expectedAllocCount int) ([]*structs.Allocation, error) {
+	var err error
+	var allocs []*structs.Allocation
+	testutil.WaitForResult(func() (bool, error) {
+		allocs, err = tc.rpcServer.State().AllocsByJob(nil, job.Namespace, job.ID, true)
+		if err != nil {
+			return false, err
+		}
+
+		if len(allocs) != expectedAllocCount {
+			return false, nil
+		}
+
+		for _, alloc := range allocs {
+			if alloc.ClientStatus != structs.AllocClientStatusRunning {
+				return false, nil
+			}
+		}
+		return true, nil
+	}, func(err error) {
+		require.NoError(tc.cfg.T, err, "error retrieving allocs %s", err)
+	})
+
+	var mErr *multierror.Error
+	for _, alloc := range allocs {
+		if alloc.ClientStatus != structs.AllocClientStatusRunning {
+			mErr = multierror.Append(mErr, fmt.Errorf("error retrieving allocs: expected status running but alloc %s has status %s", alloc.Name, alloc.ClientStatus))
+		}
+	}
+
+	return allocs, mErr.ErrorOrNil()
+}
+
 func (tc *TestCluster) WaitForNodeStatus(clientName, nodeStatus string) (err error) {
 	testClient, ok := tc.Clients[clientName]
 	if !ok || testClient == nil {
@@ -229,12 +262,17 @@ func (tc *TestCluster) LatestJobEvalForTrigger(job *structs.Job, triggerBy strin
 			return false, err
 		}
 		for _, eval := range evals {
+			tc.cfg.T.Logf("found eval with triggered by %s", eval.TriggeredBy)
+
 			if eval.TriggeredBy == triggerBy {
 				outEval = eval
 				break
 			}
 		}
-		return outEval != nil, nil
+		if outEval == nil {
+			return false, nil
+		}
+		return true, nil
 	}, func(err error) {
 		require.NoError(tc.cfg.T, err, "error retrieving evaluations %s", err)
 	})

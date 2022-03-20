@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/command/agent/consul"
 	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/uuid"
@@ -3719,129 +3718,107 @@ func TestClientEndpoint_ShouldCreateNodeEval(t *testing.T) {
 func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	t.Parallel()
 
-	clusterConfig := &TestClusterConfig{
-		t, map[string]func(*Config){
-			"server1": func(c *Config) {
-				c.HeartbeatGrace = 500 * time.Millisecond
-				c.MaxHeartbeatsPerSecond = 1
-				c.MinHeartbeatTTL = 1
-			},
-		}, map[string]func(*config.Config){
-			"client1": func(c *config.Config) {
-				c.DevMode = true
-				c.Options = make(map[string]string)
-				c.Options["test.alloc_failer.enabled"] = "true"
-				c.Options["test.heartbeat_failer.enabled"] = "true"
-			},
-			"client2": func(c *config.Config) {
-				c.DevMode = true
-			},
-		}, []*ClientAllocState{
-			{
-				clientName: "client1",
-				failed:     1,
-				pending:    0,
-				running:    0,
-				stop:       0,
-			},
-			{
-				clientName: "client2",
-				failed:     0,
-				pending:    0,
-				running:    2,
-				stop:       0,
-			},
-		}, []*EvalState{
-			{
-				TriggerBy: structs.EvalTriggerReconnect,
-				Count:     1,
-			},
-			{
-				TriggerBy: structs.EvalTriggerMaxDisconnectTimeout,
-				Count:     1,
-			},
+	type testCase struct {
+		clusterConfigFn       func(t *testing.T) *TestClusterConfig
+		jobFn                 func(string) *structs.Job
+		jobName               string
+		failWhileDisconnected bool
+	}
+
+	testCases := []testCase{
+		{
+			clusterConfigFn:       reconnectFailedAllocTestConfig,
+			jobFn:                 disconnectJob,
+			jobName:               "reconnect-failed-alloc",
+			failWhileDisconnected: true,
+		},
+		{
+			clusterConfigFn:       reconnectRunningAllocTestConfig,
+			jobFn:                 disconnectJob,
+			jobName:               "reconnect-running-alloc",
+			failWhileDisconnected: false,
 		},
 	}
-	cluster, deferFn, err := NewTestCluster(clusterConfig)
 
-	defer deferFn()
+	for _, tc := range testCases {
+		t.Run(tc.jobName, func(t *testing.T) {
+			clusterConfig := tc.clusterConfigFn(t)
+			cluster, deferFn, err := NewTestCluster(clusterConfig)
 
-	err = cluster.WaitForNodeStatus("client1", structs.NodeStatusReady)
-	require.NoError(t, err)
-	err = cluster.WaitForNodeStatus("client2", structs.NodeStatusReady)
-	require.NoError(t, err)
+			defer deferFn()
 
-	job := disconnectJob("reconnect-job")
-	err = cluster.RegisterJob(job)
+			err = cluster.WaitForNodeStatus("client1", structs.NodeStatusReady)
+			require.NoError(t, err)
+			err = cluster.WaitForNodeStatus("client2", structs.NodeStatusReady)
+			require.NoError(t, err)
 
-	// Check that allocs are running
-	var allocs []*structs.Allocation
-	testutil.WaitForResult(func() (bool, error) {
-		allocs, err = cluster.rpcServer.State().AllocsByJob(nil, job.Namespace, job.ID, true)
-		if err != nil {
-			return false, err
-		}
-		return len(allocs) == 2 &&
-				allocs[0].ClientStatus == structs.AllocClientStatusRunning &&
-				allocs[1].ClientStatus == structs.AllocClientStatusRunning,
-			nil
-	}, func(err error) {
-		require.NoError(t, err, "error retrieving allocs %s", err)
-	})
+			job := tc.jobFn(tc.jobName)
+			err = cluster.RegisterJob(job)
 
-	require.NoError(t, err)
-	require.Len(t, allocs, 2)
+			// Check that allocs are running
+			var allocs []*structs.Allocation
+			allocs, err = cluster.WaitForJobAllocsRunning(job, job.TaskGroups[0].Count)
+			require.NoError(t, err)
 
-	// Get the alloc on the node we are going to disconnect
-	nodeID, ok := cluster.NodeID("client1")
-	require.True(t, ok)
-	var alloc *structs.Allocation
-	for _, a := range allocs {
-		if a.NodeID == nodeID {
-			alloc = a
-			break
-		}
+			// Get the alloc on the node we are going to disconnect
+			nodeID, ok := cluster.NodeID("client1")
+			require.True(t, ok)
+			var alloc *structs.Allocation
+			for _, a := range allocs {
+				if a.NodeID == nodeID {
+					alloc = a
+					break
+				}
+			}
+
+			require.NotNil(t, alloc)
+			require.Equal(t, structs.AllocClientStatusRunning, alloc.ClientStatus)
+
+			err = cluster.FailHeartbeat("client1")
+			require.NoError(t, err)
+
+			// Check that the node is disconnected
+			err = cluster.WaitForNodeStatus("client1", structs.NodeStatusDisconnected)
+			require.NoError(t, err)
+
+			_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerMaxDisconnectTimeout)
+			require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerMaxDisconnectTimeout)
+
+			// Check that alloc is unknown at the server
+			err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, structs.AllocClientStatusUnknown)
+
+			if tc.failWhileDisconnected {
+				// Fail the task on the client so that we can test how the reconciler responds
+				// after the client reconnects and the task failed during the disconnect period.
+				err = cluster.FailTask("client1", alloc.ID, "", "")
+				require.NoError(t, err)
+
+				// Ensure the client status is failed.
+				err = cluster.WaitForAllocClientStatusOnClient("client1", alloc.ID, structs.AllocClientStatusFailed)
+				require.NoError(t, err)
+			}
+
+			// Reconnect
+			err = cluster.ResumeHeartbeat("client1")
+			require.NoError(t, err)
+
+			// Check that the node is reconnected
+			err = cluster.WaitForNodeStatus("client1", structs.NodeStatusReady)
+			require.NoError(t, err, "client1 failed to reconnect")
+
+			_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerReconnect)
+			require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerReconnect)
+
+			if tc.failWhileDisconnected {
+				// Verify the alloc is marked failed with the server after reconnect
+				err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, structs.AllocClientStatusFailed)
+			} else {
+				// Verify the alloc is marked running with the server after reconnect
+				err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, structs.AllocClientStatusRunning)
+			}
+
+			err = cluster.AsExpected(job)
+			require.NoError(t, err)
+		})
 	}
-
-	require.NotNil(t, alloc)
-	require.Equal(t, structs.AllocClientStatusRunning, alloc.ClientStatus)
-
-	err = cluster.FailHeartbeat("client1")
-	require.NoError(t, err)
-
-	// Check that the node is disconnected
-	err = cluster.WaitForNodeStatus("client1", structs.NodeStatusDisconnected)
-	require.NoError(t, err)
-
-	_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerMaxDisconnectTimeout)
-	require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerMaxDisconnectTimeout)
-
-	// Check that alloc is unknown at the server
-	err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, structs.AllocClientStatusUnknown)
-
-	// Fail the task on the client so that we can test how the reconciler responds
-	// after the client reconnects and the task failed during the disconnect period.
-	err = cluster.FailTask("client1", alloc.ID, "", "")
-	require.NoError(t, err)
-
-	// Ensure the client status is failed.
-	err = cluster.WaitForAllocClientStatusOnClient("client1", alloc.ID, structs.AllocClientStatusFailed)
-	require.NoError(t, err)
-
-	// Reconnect
-	err = cluster.ResumeHeartbeat("client1")
-	require.NoError(t, err)
-
-	// Check that the node is reconnected
-	err = cluster.WaitForNodeStatus("client1", structs.NodeStatusReady)
-	require.NoError(t, err, "client1 failed to reconnect")
-
-	// Verify the alloc is marked failed with the server after reconnect
-	err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, structs.AllocClientStatusFailed)
-
-	_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerReconnect)
-	require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerReconnect)
-
-	err = cluster.AsExpected(job)
-	require.NoError(t, err)
 }
