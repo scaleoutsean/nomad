@@ -3720,61 +3720,34 @@ func TestClientEndpoint_ShouldCreateNodeEval(t *testing.T) {
 func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	t.Parallel()
 
-	srv, cleanupSrv := TestServer(t, func(c *Config) {
-		c.HeartbeatGrace = 500 * time.Millisecond
-		c.MaxHeartbeatsPerSecond = 1
-		c.MinHeartbeatTTL = 1
-	})
-	defer cleanupSrv()
-	testutil.WaitForLeader(t, srv.RPC)
-
-	client1, cleanupClient1 := client.TestClient(t, func(c *config.Config) {
-		c.RPCHandler = srv
-		c.DevMode = true
-		c.Options = make(map[string]string)
-		c.Options["test.alloc_failer.enabled"] = "true"
-		c.Options["test.heartbeat_failer.enabled"] = "true"
-	})
-	defer cleanupClient1()
-
-	client2, cleanupClient2 := client.TestClient(t, func(c *config.Config) {
-		c.RPCHandler = srv
-		c.DevMode = true
-	})
-	defer cleanupClient2()
-
-	clientReady := false
-	testutil.WaitForResult(func() (bool, error) {
-		clientNode, nodeErr := srv.State().NodeByID(nil, client1.Node().ID)
-		if nodeErr != nil {
-			return false, nodeErr
-		}
-		if clientNode != nil {
-			clientReady = clientNode.Status == structs.NodeStatusReady
-		}
-		return clientReady, nil
-	}, func(err error) {
-		require.NoError(t, err)
+	cluster, deferFn, err := NewTestCluster(t, map[string]func(*Config){
+		"server1": func(c *Config) {
+			c.HeartbeatGrace = 500 * time.Millisecond
+			c.MaxHeartbeatsPerSecond = 1
+			c.MinHeartbeatTTL = 1
+		},
+	}, map[string]func(*config.Config){
+		"client1": func(c *config.Config) {
+			c.DevMode = true
+			c.Options = make(map[string]string)
+			c.Options["test.alloc_failer.enabled"] = "true"
+			c.Options["test.heartbeat_failer.enabled"] = "true"
+		},
+		"client2": func(c *config.Config) {
+			c.DevMode = true
+		},
 	})
 
-	require.True(t, clientReady)
-	clientReady = false
+	defer deferFn()
 
-	testutil.WaitForResult(func() (bool, error) {
-		clientNode, nodeErr := srv.State().NodeByID(nil, client2.Node().ID)
-		if nodeErr != nil {
-			return false, nodeErr
-		}
-		if clientNode != nil {
-			clientReady = clientNode.Status == structs.NodeStatusReady
-		}
-		return clientReady, nil
-	}, func(err error) {
-		require.NoError(t, err)
-	})
+	srv := cluster.Servers["server1"]
+	client1 := cluster.Clients["client1"]
+	client2 := cluster.Clients["client2"]
 
-	require.True(t, clientReady)
-	clientReady = false
+	err = cluster.WaitForReady("client1")
+	require.NoError(t, err)
+	err = cluster.WaitForReady("client2")
+	require.NoError(t, err)
 
 	job := spreadJob("reconnect-job")
 
@@ -3782,9 +3755,9 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 		Job:          job,
 		WriteRequest: structs.WriteRequest{Region: "global"},
 	}
-	// Fetch the response
+
 	var regResp structs.JobRegisterResponse
-	err := srv.RPC("Job.Register", regReq, &regResp)
+	err = srv.RPC("Job.Register", regReq, &regResp)
 	require.NoError(t, err)
 	require.NotEqual(t, 0, regResp.Index)
 
