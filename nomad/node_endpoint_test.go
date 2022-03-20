@@ -3736,17 +3736,32 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 		"client2": func(c *config.Config) {
 			c.DevMode = true
 		},
+	}, []*ClientAllocState{
+		{
+			T:          t,
+			clientName: "client1",
+			failed:     1,
+			pending:    0,
+			running:    0,
+			stop:       0,
+		},
+		{
+			T:          t,
+			clientName: "client2",
+			failed:     0,
+			pending:    0,
+			running:    2,
+			stop:       0,
+		},
 	})
 
 	defer deferFn()
 
-	srv := cluster.Servers["server1"]
 	client1 := cluster.Clients["client1"]
-	client2 := cluster.Clients["client2"]
 
-	err = cluster.WaitForReady("client1")
+	err = cluster.WaitForNodeStatus("client1", structs.NodeStatusReady)
 	require.NoError(t, err)
-	err = cluster.WaitForReady("client2")
+	err = cluster.WaitForNodeStatus("client2", structs.NodeStatusReady)
 	require.NoError(t, err)
 
 	job := spreadJob("reconnect-job")
@@ -3757,14 +3772,14 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	}
 
 	var regResp structs.JobRegisterResponse
-	err = srv.RPC("Job.Register", regReq, &regResp)
+	err = cluster.rpcServer.RPC("Job.Register", regReq, &regResp)
 	require.NoError(t, err)
 	require.NotEqual(t, 0, regResp.Index)
 
 	// Check that allocs are running
 	var allocs []*structs.Allocation
 	testutil.WaitForResult(func() (bool, error) {
-		allocs, err = srv.State().AllocsByJob(nil, job.Namespace, job.ID, true)
+		allocs, err = cluster.rpcServer.State().AllocsByJob(nil, job.Namespace, job.ID, true)
 		if err != nil {
 			return false, err
 		}
@@ -3795,47 +3810,16 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that the node is disconnected
-	var outNode *structs.Node
-	testutil.WaitForResult(func() (bool, error) {
-		outNode, err = srv.State().NodeByID(nil, client1.NodeID())
-		if err != nil {
-			return false, err
-		}
-		return outNode != nil && outNode.Status == structs.NodeStatusDisconnected, nil
-	}, func(err error) {
-		require.NoError(t, err, "error retrieving node %s", err)
-	})
-
+	err = cluster.WaitForNodeStatus("client1", structs.NodeStatusDisconnected)
 	require.NoError(t, err)
-	require.NotNil(t, outNode)
-	require.Equal(t, structs.NodeStatusDisconnected, outNode.Status)
 
-	// Assert that eval with TriggeredBy MaxClientDisconnect exists
-	var evals []*structs.Evaluation
-	foundEval := false
-	testutil.WaitForResult(func() (bool, error) {
-		evals, err = srv.State().EvalsByJob(nil, job.Namespace, job.ID)
-		if err != nil {
-			return false, err
-		}
-		for _, eval := range evals {
-			if eval.TriggeredBy == structs.EvalTriggerMaxDisconnectTimeout {
-				foundEval = true
-				break
-			}
-		}
-		return foundEval, nil
-	}, func(err error) {
-		require.NoError(t, err, "error retrieving evaluations %s", err)
-	})
-
-	require.NoError(t, err)
-	require.True(t, foundEval, "should create eval with trigger %s", structs.EvalTriggerMaxDisconnectTimeout)
+	_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerMaxDisconnectTimeout)
+	require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerMaxDisconnectTimeout)
 
 	// Check that alloc is unknown
 	var outAlloc *structs.Allocation
 	testutil.WaitForResult(func() (bool, error) {
-		outAlloc, err = srv.State().AllocByID(nil, alloc.ID)
+		outAlloc, err = cluster.rpcServer.State().AllocByID(nil, alloc.ID)
 		if err != nil {
 			return false, err
 		}
@@ -3871,24 +3855,13 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that the node is reconnected
-	testutil.WaitForResult(func() (bool, error) {
-		outNode, err = srv.State().NodeByID(nil, client1.NodeID())
-		if err != nil {
-			return false, err
-		}
-		return outNode != nil && outNode.Status == structs.NodeStatusReady, nil
-	}, func(err error) {
-		require.NoError(t, err, "error retrieving node %s", err)
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, outNode)
-	require.Equal(t, outNode.Status, structs.NodeStatusReady)
+	err = cluster.WaitForNodeStatus("client1", structs.NodeStatusReady)
+	require.NoError(t, err, "client1 failed to reconnect")
 
 	// Verify the alloc is marked failed with the server after reconnect
 	outAlloc = nil
 	testutil.WaitForResult(func() (bool, error) {
-		outAlloc, err = srv.State().AllocByID(nil, alloc.ID)
+		outAlloc, err = cluster.rpcServer.State().AllocByID(nil, alloc.ID)
 		if err != nil {
 			return false, err
 		}
@@ -3901,53 +3874,15 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	require.NotNil(t, outAlloc)
 	require.Equal(t, structs.AllocClientStatusFailed, outAlloc.ClientStatus)
 
-	// Assert that eval with TriggeredBy EvalTriggerReconnect exists
-	foundEval = false
-	testutil.WaitForResult(func() (bool, error) {
-		evals, err = srv.State().EvalsByJob(nil, job.Namespace, job.ID)
-		if err != nil {
-			return false, err
-		}
-		for _, resultEval := range evals {
-			if resultEval.TriggeredBy == structs.EvalTriggerReconnect && resultEval.WaitUntil.IsZero() {
-				foundEval = true
-				break
-			}
-		}
-		return foundEval, nil
-	}, func(err error) {
-		require.NoError(t, err, "error retrieving evaluations %s", err)
-	})
+	_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerReconnect)
+	require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerReconnect)
 
-	require.True(t, foundEval, "should create eval with trigger %s", structs.EvalTriggerReconnect)
-
-	client1Expected := &expectedClientState{
-		T:          t,
-		server:     srv,
-		client:     client1,
-		clientName: "client1",
-		failed:     1,
-		pending:    0,
-		running:    0,
-		stop:       0,
-	}
-
-	client2Expected := &expectedClientState{
-		T:          t,
-		server:     srv,
-		client:     client2,
-		clientName: "client2",
-		failed:     0,
-		pending:    0,
-		running:    2,
-		stop:       0,
-	}
-
-	require.NoError(t, client1Expected.asExpected())
-	require.NoError(t, client2Expected.asExpected())
+	err = cluster.AsExpected()
+	require.NoError(t, err)
 
 	// Validate only the desired number of evals processed
-	evals, err = srv.State().EvalsByJob(nil, job.Namespace, job.ID)
+	var evals []*structs.Evaluation
+	evals, err = cluster.rpcServer.State().EvalsByJob(nil, job.Namespace, job.ID)
 	require.NoError(t, err)
 	maxDisconnectCount := 0
 	reconnectCount := 0
