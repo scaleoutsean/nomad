@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/client"
 	"github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/command/agent/consul"
 	"github.com/hashicorp/nomad/helper"
@@ -3757,14 +3756,12 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 
 	defer deferFn()
 
-	client1 := cluster.Clients["client1"]
-
 	err = cluster.WaitForNodeStatus("client1", structs.NodeStatusReady)
 	require.NoError(t, err)
 	err = cluster.WaitForNodeStatus("client2", structs.NodeStatusReady)
 	require.NoError(t, err)
 
-	job := spreadJob("reconnect-job")
+	job := disconnectJob("reconnect-job")
 
 	regReq := &structs.JobRegisterRequest{
 		Job:          job,
@@ -3795,9 +3792,11 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	require.Len(t, allocs, 2)
 
 	// Get the alloc on the node we are going to disconnect
+	nodeID, ok := cluster.NodeID("client1")
+	require.True(t, ok)
 	var alloc *structs.Allocation
 	for _, a := range allocs {
-		if a.NodeID == client1.NodeID() {
+		if a.NodeID == nodeID {
 			alloc = a
 			break
 		}
@@ -3806,7 +3805,7 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	require.NotNil(t, alloc)
 	require.Equal(t, structs.AllocClientStatusRunning, alloc.ClientStatus)
 
-	err = client.FailHeartbeat(client1)
+	err = cluster.FailHeartbeat("client1")
 	require.NoError(t, err)
 
 	// Check that the node is disconnected
@@ -3834,24 +3833,15 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 
 	// Fail the task on the client so that we can test how the reconciler responds
 	// after the client reconnects and the task failed during the disconnect period.
-	err = client.FailTask(client1, alloc.ID, "", "")
+	err = cluster.FailTask("client1", alloc.ID, "", "")
 	require.NoError(t, err)
 
-	testutil.WaitForResult(func() (bool, error) {
-		outAlloc, err = client1.GetAlloc(alloc.ID)
-		if err != nil {
-			return false, err
-		}
-		return outAlloc != nil && outAlloc.ClientStatus == structs.AllocClientStatusFailed, nil
-	}, func(err error) {
-		require.NoError(t, err, "error retrieving alloc %s", err)
-	})
-
+	// Ensure the client status is failed.
+	err = cluster.WaitForAllocClientStatusOnClient("client1", alloc.ID, structs.AllocClientStatusFailed)
 	require.NoError(t, err)
-	require.NotNil(t, outAlloc)
-	require.Equal(t, structs.AllocClientStatusFailed, outAlloc.ClientStatus)
 
-	err = client.ResumeHeartbeat(client1)
+	// Reconnect
+	err = cluster.ResumeHeartbeat("client1")
 	require.NoError(t, err)
 
 	// Check that the node is reconnected
@@ -3859,20 +3849,7 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	require.NoError(t, err, "client1 failed to reconnect")
 
 	// Verify the alloc is marked failed with the server after reconnect
-	outAlloc = nil
-	testutil.WaitForResult(func() (bool, error) {
-		outAlloc, err = cluster.rpcServer.State().AllocByID(nil, alloc.ID)
-		if err != nil {
-			return false, err
-		}
-		return outAlloc != nil && outAlloc.ClientStatus == structs.AllocClientStatusFailed, nil
-	}, func(err error) {
-		require.NoError(t, err, "error retrieving alloc %s", err)
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, outAlloc)
-	require.Equal(t, structs.AllocClientStatusFailed, outAlloc.ClientStatus)
+	err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, structs.AllocClientStatusFailed)
 
 	_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerReconnect)
 	require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerReconnect)

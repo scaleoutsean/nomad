@@ -77,6 +77,38 @@ func NewTestCluster(t *testing.T, serverFn map[string]func(*Config), clientFn ma
 	return cluster, deferFn, nil
 }
 
+func (tc *TestCluster) NodeID(clientName string) (string, bool) {
+	testClient, ok := tc.Clients[clientName]
+	if !ok {
+		return "", ok
+	}
+	return testClient.NodeID(), ok
+}
+
+func (tc *TestCluster) FailHeartbeat(clientName string) error {
+	testClient, ok := tc.Clients[clientName]
+	if !ok {
+		return fmt.Errorf("error failing hearbeat: client %s not found", clientName)
+	}
+	return client.FailHeartbeat(testClient)
+}
+
+func (tc *TestCluster) ResumeHeartbeat(clientName string) error {
+	testClient, ok := tc.Clients[clientName]
+	if !ok {
+		return fmt.Errorf("error resuming hearbeat: client %s not found", clientName)
+	}
+	return client.ResumeHeartbeat(testClient)
+}
+
+func (tc *TestCluster) FailTask(clientName, allocID, taskName, taskEvent string) error {
+	testClient, ok := tc.Clients[clientName]
+	if !ok {
+		return fmt.Errorf("error failing hearbeat: client %s not found", clientName)
+	}
+	return client.FailTask(testClient, allocID, taskName, taskEvent)
+}
+
 func (tc *TestCluster) WaitForNodeStatus(clientName, nodeStatus string) (err error) {
 	testClient, ok := tc.Clients[clientName]
 	if !ok || testClient == nil {
@@ -102,6 +134,65 @@ func (tc *TestCluster) WaitForNodeStatus(clientName, nodeStatus string) (err err
 	}
 
 	return
+}
+
+func (tc *TestCluster) WaitForAllocClientStatusOnClient(clientName, allocID, clientStatus string) error {
+	testClient, ok := tc.Clients[clientName]
+	if !ok || testClient == nil {
+		return fmt.Errorf("error: client %s not found", clientName)
+	}
+
+	var err error
+	var outAlloc *structs.Allocation
+	testutil.WaitForResult(func() (bool, error) {
+		outAlloc, err = testClient.GetAlloc(allocID)
+		if err != nil {
+			return false, err
+		}
+		if outAlloc != nil && outAlloc.ClientStatus == clientStatus {
+			return true, nil
+		}
+		return false, nil
+	}, func(err error) {
+		require.NoError(tc.T, err, "error retrieving alloc %s", err)
+	})
+
+	if outAlloc == nil {
+		return fmt.Errorf("expected alloc on client %s with id %s to not be nil", clientName, allocID)
+	}
+
+	if outAlloc.ClientStatus != clientStatus {
+		return fmt.Errorf("expected alloc on client %s with id %s to have status %s but had %s", clientName, allocID, clientStatus, outAlloc.ClientStatus)
+	}
+
+	return nil
+}
+
+func (tc *TestCluster) WaitForAllocClientStatusOnServer(allocID, clientStatus string) error {
+	var err error
+	var outAlloc *structs.Allocation
+	testutil.WaitForResult(func() (bool, error) {
+		outAlloc, err = tc.rpcServer.State().AllocByID(nil, allocID)
+		if err != nil {
+			return false, err
+		}
+		if outAlloc != nil && outAlloc.ClientStatus == clientStatus {
+			return true, nil
+		}
+		return false, nil
+	}, func(err error) {
+		require.NoError(tc.T, err, "error retrieving alloc %s", err)
+	})
+
+	if outAlloc == nil {
+		return fmt.Errorf("expected alloc at server with id %s to not be nil", allocID)
+	}
+
+	if outAlloc.ClientStatus != clientStatus {
+		return fmt.Errorf("expected alloc at server with id %s to have status %s but had %s", allocID, clientStatus, outAlloc.ClientStatus)
+	}
+
+	return nil
 }
 
 func (tc *TestCluster) LatestJobEvalForTrigger(job *structs.Job, triggerBy string) (*structs.Evaluation, error) {

@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
-func spreadJob(jobID string) *structs.Job {
+func disconnectJob(jobID string) *structs.Job {
 	noRestart := &structs.RestartPolicy{
 		Attempts: 0,
 		Interval: 5 * time.Second,
