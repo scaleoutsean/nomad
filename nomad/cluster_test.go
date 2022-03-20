@@ -18,10 +18,11 @@ type TestCluster struct {
 	rpcServer           *Server
 	Servers             map[string]*Server
 	Clients             map[string]*client.Client
-	ExpectedAllocStates []*ClientAllocState
+	expectedAllocStates []*ClientAllocState
+	expectedEvalStates  []*EvalState
 }
 
-func NewTestCluster(t *testing.T, serverFn map[string]func(*Config), clientFn map[string]func(*config.Config), expectedAllocStates []*ClientAllocState) (*TestCluster, func() error, error) {
+func NewTestCluster(t *testing.T, serverFn map[string]func(*Config), clientFn map[string]func(*config.Config), expectedAllocStates []*ClientAllocState, expectedEvalStates []*EvalState) (*TestCluster, func() error, error) {
 	if len(serverFn) == 0 || len(clientFn) == 0 {
 		return nil, nil,
 			fmt.Errorf("invalid test cluster: requires both servers and client - server count %d client count %d", len(serverFn), len(clientFn))
@@ -30,7 +31,8 @@ func NewTestCluster(t *testing.T, serverFn map[string]func(*Config), clientFn ma
 	cluster := &TestCluster{
 		Servers:             make(map[string]*Server, len(serverFn)),
 		Clients:             make(map[string]*client.Client, len(clientFn)),
-		ExpectedAllocStates: expectedAllocStates,
+		expectedAllocStates: expectedAllocStates,
+		expectedEvalStates:  expectedEvalStates,
 	}
 
 	serverCleanups := make(map[string]func(), len(serverFn))
@@ -75,6 +77,25 @@ func NewTestCluster(t *testing.T, serverFn map[string]func(*Config), clientFn ma
 	}
 
 	return cluster, deferFn, nil
+}
+
+func (tc *TestCluster) RegisterJob(job *structs.Job) error {
+	regReq := &structs.JobRegisterRequest{
+		Job:          job,
+		WriteRequest: structs.WriteRequest{Region: "global"},
+	}
+
+	var regResp structs.JobRegisterResponse
+	err := tc.rpcServer.RPC("Job.Register", regReq, &regResp)
+	if err != nil {
+		return err
+	}
+
+	if regResp.Index == 0 {
+		return fmt.Errorf("error registering job: index is 0")
+	}
+
+	return nil
 }
 
 func (tc *TestCluster) NodeID(clientName string) (string, bool) {
@@ -220,10 +241,10 @@ func (tc *TestCluster) LatestJobEvalForTrigger(job *structs.Job, triggerBy strin
 	return outEval, nil
 }
 
-func (tc *TestCluster) AsExpected() error {
+func (tc *TestCluster) AsExpected(job *structs.Job) error {
 	var mErr *multierror.Error
 
-	for _, clientState := range tc.ExpectedAllocStates {
+	for _, clientState := range tc.expectedAllocStates {
 		testClient, ok := tc.Clients[clientState.clientName]
 		if !ok || testClient == nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("error validating client state: invalid client name %s", clientState.clientName))
@@ -235,7 +256,38 @@ func (tc *TestCluster) AsExpected() error {
 		}
 	}
 
+	for _, evalState := range tc.expectedEvalStates {
+		if err := evalState.AsExpected(tc.rpcServer, job); err != nil {
+			mErr = multierror.Append(mErr, err)
+		}
+	}
+
 	return mErr.ErrorOrNil()
+}
+
+type EvalState struct {
+	T         *testing.T
+	TriggerBy string
+	Count     int
+}
+
+func (es *EvalState) AsExpected(server *Server, job *structs.Job) error {
+	evals, err := server.State().EvalsByJob(nil, job.Namespace, job.ID)
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, eval := range evals {
+		if eval.TriggeredBy == es.TriggerBy {
+			count++
+		}
+	}
+
+	if count != es.Count {
+		return fmt.Errorf("error validating eval state: expected %d eval(s) found %d", es.Count, count)
+	}
+
+	return nil
 }
 
 type ClientAllocState struct {

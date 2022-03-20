@@ -3752,7 +3752,19 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 			running:    2,
 			stop:       0,
 		},
-	})
+	}, []*EvalState{
+		{
+			T:         t,
+			TriggerBy: structs.EvalTriggerReconnect,
+			Count:     1,
+		},
+		{
+			T:         t,
+			TriggerBy: structs.EvalTriggerMaxDisconnectTimeout,
+			Count:     1,
+		},
+	},
+	)
 
 	defer deferFn()
 
@@ -3762,16 +3774,7 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	require.NoError(t, err)
 
 	job := disconnectJob("reconnect-job")
-
-	regReq := &structs.JobRegisterRequest{
-		Job:          job,
-		WriteRequest: structs.WriteRequest{Region: "global"},
-	}
-
-	var regResp structs.JobRegisterResponse
-	err = cluster.rpcServer.RPC("Job.Register", regReq, &regResp)
-	require.NoError(t, err)
-	require.NotEqual(t, 0, regResp.Index)
+	err = cluster.RegisterJob(job)
 
 	// Check that allocs are running
 	var allocs []*structs.Allocation
@@ -3815,21 +3818,8 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerMaxDisconnectTimeout)
 	require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerMaxDisconnectTimeout)
 
-	// Check that alloc is unknown
-	var outAlloc *structs.Allocation
-	testutil.WaitForResult(func() (bool, error) {
-		outAlloc, err = cluster.rpcServer.State().AllocByID(nil, alloc.ID)
-		if err != nil {
-			return false, err
-		}
-		return outAlloc != nil && outAlloc.ClientStatus == structs.AllocClientStatusUnknown, nil
-	}, func(err error) {
-		require.NoError(t, err, "error retrieving unknown alloc %s", err)
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, outAlloc)
-	require.Equal(t, structs.AllocClientStatusUnknown, outAlloc.ClientStatus)
+	// Check that alloc is unknown at the server
+	err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, structs.AllocClientStatusUnknown)
 
 	// Fail the task on the client so that we can test how the reconciler responds
 	// after the client reconnects and the task failed during the disconnect period.
@@ -3854,24 +3844,6 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerReconnect)
 	require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerReconnect)
 
-	err = cluster.AsExpected()
+	err = cluster.AsExpected(job)
 	require.NoError(t, err)
-
-	// Validate only the desired number of evals processed
-	var evals []*structs.Evaluation
-	evals, err = cluster.rpcServer.State().EvalsByJob(nil, job.Namespace, job.ID)
-	require.NoError(t, err)
-	maxDisconnectCount := 0
-	reconnectCount := 0
-	for _, eval := range evals {
-		if eval.TriggeredBy == structs.EvalTriggerMaxDisconnectTimeout {
-			maxDisconnectCount++
-		}
-		if eval.TriggeredBy == structs.EvalTriggerReconnect {
-			reconnectCount++
-		}
-	}
-
-	require.Equal(t, 1, maxDisconnectCount)
-	require.Equal(t, 1, reconnectCount)
 }
