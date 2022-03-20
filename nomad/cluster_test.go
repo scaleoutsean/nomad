@@ -14,30 +14,35 @@ import (
 
 // TestCluster is a cluster of test serves and clients suitable for integration testing.
 type TestCluster struct {
+	cfg       *TestClusterConfig
+	rpcServer *Server
+	Servers   map[string]*Server
+	Clients   map[string]*client.Client
+}
+
+type TestClusterConfig struct {
 	T                   *testing.T
-	rpcServer           *Server
-	Servers             map[string]*Server
-	Clients             map[string]*client.Client
+	serverFn            map[string]func(*Config)
+	clientFn            map[string]func(*config.Config)
 	expectedAllocStates []*ClientAllocState
 	expectedEvalStates  []*EvalState
 }
 
-func NewTestCluster(t *testing.T, serverFn map[string]func(*Config), clientFn map[string]func(*config.Config), expectedAllocStates []*ClientAllocState, expectedEvalStates []*EvalState) (*TestCluster, func() error, error) {
-	if len(serverFn) == 0 || len(clientFn) == 0 {
+func NewTestCluster(cfg *TestClusterConfig) (*TestCluster, func() error, error) {
+	if len(cfg.serverFn) == 0 || len(cfg.clientFn) == 0 {
 		return nil, nil,
-			fmt.Errorf("invalid test cluster: requires both servers and client - server count %d client count %d", len(serverFn), len(clientFn))
+			fmt.Errorf("invalid test cluster: requires both servers and client - server count %d client count %d", len(cfg.serverFn), len(cfg.clientFn))
 	}
 
 	cluster := &TestCluster{
-		Servers:             make(map[string]*Server, len(serverFn)),
-		Clients:             make(map[string]*client.Client, len(clientFn)),
-		expectedAllocStates: expectedAllocStates,
-		expectedEvalStates:  expectedEvalStates,
+		Servers: make(map[string]*Server, len(cfg.serverFn)),
+		Clients: make(map[string]*client.Client, len(cfg.clientFn)),
+		cfg:     cfg,
 	}
 
-	serverCleanups := make(map[string]func(), len(serverFn))
-	for name, fn := range serverFn {
-		testServer, cleanup := TestServer(t, fn)
+	serverCleanups := make(map[string]func(), len(cfg.serverFn))
+	for name, fn := range cfg.serverFn {
+		testServer, cleanup := TestServer(cfg.T, fn)
 		cluster.Servers[name] = testServer
 		serverCleanups[name] = cleanup
 		if cluster.rpcServer == nil {
@@ -45,15 +50,15 @@ func NewTestCluster(t *testing.T, serverFn map[string]func(*Config), clientFn ma
 		}
 	}
 
-	testutil.WaitForLeader(t, cluster.rpcServer.RPC)
+	testutil.WaitForLeader(cfg.T, cluster.rpcServer.RPC)
 
-	clientCleanups := make(map[string]func() error, len(clientFn))
-	for name, fn := range clientFn {
+	clientCleanups := make(map[string]func() error, len(cfg.clientFn))
+	for name, fn := range cfg.clientFn {
 		configFn := func(c *config.Config) {
 			c.RPCHandler = cluster.rpcServer
 			fn(c)
 		}
-		testClient, cleanup := client.TestClient(t, configFn)
+		testClient, cleanup := client.TestClient(cfg.T, configFn)
 
 		cluster.Clients[name] = testClient
 		clientCleanups[name] = cleanup
@@ -175,7 +180,7 @@ func (tc *TestCluster) WaitForAllocClientStatusOnClient(clientName, allocID, cli
 		}
 		return false, nil
 	}, func(err error) {
-		require.NoError(tc.T, err, "error retrieving alloc %s", err)
+		require.NoError(tc.cfg.T, err, "error retrieving alloc %s", err)
 	})
 
 	if outAlloc == nil {
@@ -202,7 +207,7 @@ func (tc *TestCluster) WaitForAllocClientStatusOnServer(allocID, clientStatus st
 		}
 		return false, nil
 	}, func(err error) {
-		require.NoError(tc.T, err, "error retrieving alloc %s", err)
+		require.NoError(tc.cfg.T, err, "error retrieving alloc %s", err)
 	})
 
 	if outAlloc == nil {
@@ -231,7 +236,7 @@ func (tc *TestCluster) LatestJobEvalForTrigger(job *structs.Job, triggerBy strin
 		}
 		return outEval != nil, nil
 	}, func(err error) {
-		require.NoError(tc.T, err, "error retrieving evaluations %s", err)
+		require.NoError(tc.cfg.T, err, "error retrieving evaluations %s", err)
 	})
 
 	if outEval == nil {
@@ -244,19 +249,19 @@ func (tc *TestCluster) LatestJobEvalForTrigger(job *structs.Job, triggerBy strin
 func (tc *TestCluster) AsExpected(job *structs.Job) error {
 	var mErr *multierror.Error
 
-	for _, clientState := range tc.expectedAllocStates {
+	for _, clientState := range tc.cfg.expectedAllocStates {
 		testClient, ok := tc.Clients[clientState.clientName]
 		if !ok || testClient == nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("error validating client state: invalid client name %s", clientState.clientName))
 			continue
 		}
 
-		if err := clientState.AsExpected(tc.rpcServer, testClient.NodeID()); err != nil {
+		if err := clientState.AsExpected(tc.cfg.T, tc.rpcServer, testClient.NodeID()); err != nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("error validating client state for %s: \n\t%s", clientState.clientName, err))
 		}
 	}
 
-	for _, evalState := range tc.expectedEvalStates {
+	for _, evalState := range tc.cfg.expectedEvalStates {
 		if err := evalState.AsExpected(tc.rpcServer, job); err != nil {
 			mErr = multierror.Append(mErr, err)
 		}
@@ -266,7 +271,6 @@ func (tc *TestCluster) AsExpected(job *structs.Job) error {
 }
 
 type EvalState struct {
-	T         *testing.T
 	TriggerBy string
 	Count     int
 }
@@ -291,7 +295,6 @@ func (es *EvalState) AsExpected(server *Server, job *structs.Job) error {
 }
 
 type ClientAllocState struct {
-	T          *testing.T
 	clientName string
 	failed     int
 	running    int
@@ -299,7 +302,7 @@ type ClientAllocState struct {
 	stop       int
 }
 
-func (ecs *ClientAllocState) AsExpected(server *Server, nodeID string) error {
+func (ecs *ClientAllocState) AsExpected(t *testing.T, server *Server, nodeID string) error {
 	var err error
 	var allocs []*structs.Allocation
 	testutil.WaitForResult(func() (bool, error) {
@@ -312,10 +315,10 @@ func (ecs *ClientAllocState) AsExpected(server *Server, nodeID string) error {
 		}
 		return true, nil
 	}, func(err error) {
-		require.NoError(ecs.T, err, "error retrieving allocs for %s - %s", ecs.clientName, err)
+		require.NoError(t, err, "error retrieving allocs for %s - %s", ecs.clientName, err)
 	})
 
-	require.NotEqual(ecs.T, 0, len(allocs))
+	require.NotEqual(t, 0, len(allocs))
 
 	failed := 0
 	running := 0

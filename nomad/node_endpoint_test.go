@@ -3719,52 +3719,50 @@ func TestClientEndpoint_ShouldCreateNodeEval(t *testing.T) {
 func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 	t.Parallel()
 
-	cluster, deferFn, err := NewTestCluster(t, map[string]func(*Config){
-		"server1": func(c *Config) {
-			c.HeartbeatGrace = 500 * time.Millisecond
-			c.MaxHeartbeatsPerSecond = 1
-			c.MinHeartbeatTTL = 1
+	clusterConfig := &TestClusterConfig{
+		t, map[string]func(*Config){
+			"server1": func(c *Config) {
+				c.HeartbeatGrace = 500 * time.Millisecond
+				c.MaxHeartbeatsPerSecond = 1
+				c.MinHeartbeatTTL = 1
+			},
+		}, map[string]func(*config.Config){
+			"client1": func(c *config.Config) {
+				c.DevMode = true
+				c.Options = make(map[string]string)
+				c.Options["test.alloc_failer.enabled"] = "true"
+				c.Options["test.heartbeat_failer.enabled"] = "true"
+			},
+			"client2": func(c *config.Config) {
+				c.DevMode = true
+			},
+		}, []*ClientAllocState{
+			{
+				clientName: "client1",
+				failed:     1,
+				pending:    0,
+				running:    0,
+				stop:       0,
+			},
+			{
+				clientName: "client2",
+				failed:     0,
+				pending:    0,
+				running:    2,
+				stop:       0,
+			},
+		}, []*EvalState{
+			{
+				TriggerBy: structs.EvalTriggerReconnect,
+				Count:     1,
+			},
+			{
+				TriggerBy: structs.EvalTriggerMaxDisconnectTimeout,
+				Count:     1,
+			},
 		},
-	}, map[string]func(*config.Config){
-		"client1": func(c *config.Config) {
-			c.DevMode = true
-			c.Options = make(map[string]string)
-			c.Options["test.alloc_failer.enabled"] = "true"
-			c.Options["test.heartbeat_failer.enabled"] = "true"
-		},
-		"client2": func(c *config.Config) {
-			c.DevMode = true
-		},
-	}, []*ClientAllocState{
-		{
-			T:          t,
-			clientName: "client1",
-			failed:     1,
-			pending:    0,
-			running:    0,
-			stop:       0,
-		},
-		{
-			T:          t,
-			clientName: "client2",
-			failed:     0,
-			pending:    0,
-			running:    2,
-			stop:       0,
-		},
-	}, []*EvalState{
-		{
-			T:         t,
-			TriggerBy: structs.EvalTriggerReconnect,
-			Count:     1,
-		},
-		{
-			T:         t,
-			TriggerBy: structs.EvalTriggerMaxDisconnectTimeout,
-			Count:     1,
-		},
-	},
-	)
+	}
+	cluster, deferFn, err := NewTestCluster(clusterConfig)
 
 	defer deferFn()
 
