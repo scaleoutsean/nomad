@@ -410,6 +410,12 @@ func (a *allocReconciler) computeGroup(groupName string, all allocSet) bool {
 	// Determine what set of allocations are on tainted nodes
 	untainted, migrate, lost, disconnecting, reconnecting := all.filterByTainted(a.taintedNodes, a.supportsDisconnectedClients, a.evalTriggeredBy)
 
+	if len(disconnecting) != 0 {
+		fmt.Printf("disconnecting: %d\n", len(disconnecting))
+	}
+	if len(reconnecting) != 0 {
+		fmt.Printf("reconnecting: %d\n", len(reconnecting))
+	}
 	// Determine what set of terminal allocations need to be rescheduled
 	untainted, rescheduleNow, rescheduleLater := untainted.filterByRescheduleable(a.batch, a.now, a.evalID, a.deployment)
 

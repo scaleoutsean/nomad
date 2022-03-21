@@ -1620,12 +1620,6 @@ func (c *Client) registerAndHeartbeat() {
 	}
 
 	for {
-		// If test instrumentation is enabled skip heartbeating
-		if c.failHeartbeat {
-			c.logger.Trace("failing heartbeat per test config")
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
 		select {
 		case <-c.rpcRetryWatcher():
 		case <-heartbeat:
@@ -1886,6 +1880,11 @@ func (c *Client) updateNodeStatus() error {
 		WriteRequest: structs.WriteRequest{Region: c.Region()},
 	}
 	var resp structs.NodeUpdateResponse
+	// If test instrumentation is enabled skip heartbeating
+	if c.failHeartbeat {
+		time.Sleep(500 * time.Millisecond)
+		return fmt.Errorf("failing heartbeat per test config")
+	}
 	if err := c.RPC("Node.UpdateStatus", &req, &resp); err != nil {
 		c.triggerDiscovery()
 		return fmt.Errorf("failed to update status: %v", err)
@@ -2191,7 +2190,6 @@ OUTER:
 			// Ensure that we received all the allocations we wanted
 			pulledAllocs = make(map[string]*structs.Allocation, len(allocsResp.Allocs))
 			for _, alloc := range allocsResp.Allocs {
-
 				// handle an old Server
 				alloc.Canonicalize()
 

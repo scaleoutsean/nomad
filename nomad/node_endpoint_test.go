@@ -3723,36 +3723,106 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 		jobFn                 func(string) *structs.Job
 		jobName               string
 		failWhileDisconnected bool
+		mutateJobFn           func(*structs.Job) *structs.Job
+		maxDisconnect         time.Duration
+		testFollowupEval      bool
+		disconnectedStatus    string
+		finalStatus           string
+		includeTaskEvents     []string
+		excludeTaskEvents     []string
 	}
 
 	testCases := []testCase{
+		{
+			clusterConfigFn:       reconnectRunningAllocTestConfig,
+			jobFn:                 disconnectJob,
+			jobName:               "reconnect-running-no-restart",
+			failWhileDisconnected: false,
+			disconnectedStatus:    structs.AllocClientStatusRunning,
+			finalStatus:           structs.AllocClientStatusRunning,
+			includeTaskEvents:     []string{structs.TaskClientReconnected, structs.TaskStateRunning},
+			excludeTaskEvents:     []string{structs.TaskRestarting},
+		},
 		{
 			clusterConfigFn:       reconnectFailedAllocTestConfig,
 			jobFn:                 disconnectJob,
 			jobName:               "reconnect-failed-alloc",
 			failWhileDisconnected: true,
+			disconnectedStatus:    structs.AllocClientStatusFailed,
+			finalStatus:           structs.AllocClientStatusFailed,
+			includeTaskEvents:     []string{structs.TaskClientReconnected, structs.AllocClientStatusFailed},
 		},
 		{
 			clusterConfigFn:       reconnectRunningAllocTestConfig,
 			jobFn:                 disconnectJob,
-			jobName:               "reconnect-running-alloc",
+			jobName:               "reconnect-new-job-version",
 			failWhileDisconnected: false,
+			mutateJobFn: func(job *structs.Job) *structs.Job {
+				job.Version++
+				return job
+			},
+			disconnectedStatus: structs.AllocClientStatusRunning,
+			finalStatus:        structs.AllocClientStatusComplete,
+			// TODO (derek) - Will it have both killed and terminated?
+			includeTaskEvents: []string{structs.TaskClientReconnected, structs.TaskTerminated, structs.TaskKilled},
+			excludeTaskEvents: []string{structs.TaskRestarting},
+		},
+		{
+			clusterConfigFn:       reconnectRunningAllocTestConfig,
+			jobFn:                 disconnectJob,
+			jobName:               "reconnect-new-job-version-follow-up-eval",
+			failWhileDisconnected: false,
+			mutateJobFn: func(job *structs.Job) *structs.Job {
+				job.Version++
+				return job
+			},
+			maxDisconnect:      time.Second * 1,
+			testFollowupEval:   true,
+			disconnectedStatus: structs.AllocClientStatusRunning,
+			includeTaskEvents:  []string{structs.TaskClientReconnected},
+			excludeTaskEvents:  []string{structs.TaskRestarting, structs.TaskTerminated, structs.TaskKilled},
+		},
+		{
+			clusterConfigFn:       reconnectPendingAllocTestConfig,
+			jobFn:                 disconnectJob,
+			jobName:               "reconnect-pending",
+			failWhileDisconnected: false,
+			disconnectedStatus:    structs.AllocClientStatusPending,
+			finalStatus:           structs.AllocClientStatusComplete,
+			includeTaskEvents:     []string{structs.TaskClientReconnected, structs.TaskTerminated, structs.TaskKilled},
+			excludeTaskEvents:     []string{structs.TaskRestarting, structs.TaskStateRunning},
+		},
+		{
+			clusterConfigFn:       reconnectRunningAllocTestConfig,
+			jobFn:                 disconnectJob,
+			jobName:               "reconnect-follow-up-eval-marks-lost",
+			failWhileDisconnected: false,
+			maxDisconnect:         time.Second * 1,
+			testFollowupEval:      true,
+			disconnectedStatus:    structs.AllocClientStatusRunning,
+			finalStatus:           structs.AllocClientStatusLost,
+			// TODO (derek) - Will it have both killed and terminated?
+			includeTaskEvents: []string{structs.TaskClientReconnected, structs.TaskTerminated, structs.TaskKilled},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.jobName, func(t *testing.T) {
 			clusterConfig := tc.clusterConfigFn(t)
-			cluster, deferFn, err := NewTestCluster(clusterConfig)
+			cluster, cleanup, err := NewTestCluster(clusterConfig)
 
-			defer deferFn()
+			job := tc.jobFn(tc.jobName)
+
+			defer func() {
+				cluster.PrintState(job)
+				cleanup()
+			}()
 
 			err = cluster.WaitForNodeStatus("client1", structs.NodeStatusReady)
 			require.NoError(t, err)
 			err = cluster.WaitForNodeStatus("client2", structs.NodeStatusReady)
 			require.NoError(t, err)
 
-			job := tc.jobFn(tc.jobName)
 			err = cluster.RegisterJob(job)
 
 			// Check that allocs are running
@@ -3781,11 +3851,12 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 			err = cluster.WaitForNodeStatus("client1", structs.NodeStatusDisconnected)
 			require.NoError(t, err)
 
-			_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerMaxDisconnectTimeout)
-			require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerMaxDisconnectTimeout)
-
 			// Check that alloc is unknown at the server
 			err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, structs.AllocClientStatusUnknown)
+			require.NoError(t, err)
+
+			_, err = cluster.WaitForJobEvalByTrigger(job, structs.EvalTriggerMaxDisconnectTimeout)
+			require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerMaxDisconnectTimeout)
 
 			if tc.failWhileDisconnected {
 				// Fail the task on the client so that we can test how the reconciler responds
@@ -3806,8 +3877,16 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 			err = cluster.WaitForNodeStatus("client1", structs.NodeStatusReady)
 			require.NoError(t, err, "client1 failed to reconnect")
 
-			_, err = cluster.LatestJobEvalForTrigger(job, structs.EvalTriggerReconnect)
-			require.NoError(t, err, "expected eval with trigger %s", structs.EvalTriggerReconnect)
+			// Check that the alloc has the expected status at the server
+			err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, tc.finalStatus)
+			require.NoError(t, err)
+
+			triggerBy := structs.EvalTriggerNodeUpdate
+			if tc.failWhileDisconnected {
+				triggerBy = structs.EvalTriggerReconnect
+			}
+			_, err = cluster.WaitForJobEvalByTrigger(job, triggerBy)
+			require.NoError(t, err, "expected eval with trigger %s", triggerBy)
 
 			if tc.failWhileDisconnected {
 				// Verify the alloc is marked failed with the server after reconnect

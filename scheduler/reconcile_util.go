@@ -241,7 +241,15 @@ func newReplacementMap(set allocSet) *replacementMap {
 	return rm
 }
 
-func (rm replacementMap) getOriginal(allocName string) *structs.Allocation {
+func (rm *replacementMap) isReconnecting(alloc *structs.Allocation) bool {
+	original := rm.getOriginal(alloc.Name)
+	if original == nil {
+		return false
+	}
+	return original.ID == alloc.ID
+}
+
+func (rm *replacementMap) getOriginal(allocName string) *structs.Allocation {
 	items := rm.entries[allocName]
 
 	if items[0].PreviousAllocation == items[1].ID {
@@ -266,11 +274,7 @@ func (a allocSet) filterByTainted(taintedNodes map[string]*structs.Node, support
 	lost = make(map[string]*structs.Allocation)
 	disconnecting = make(map[string]*structs.Allocation)
 	reconnecting = make(map[string]*structs.Allocation)
-	replacements := newReplacementMap(nil)
-	// If triggered by a reconnect event, build a map of reconnecting allocs to the alloc that replaced them.
-	if triggeredBy == structs.EvalTriggerReconnect {
-		replacements = newReplacementMap(a)
-	}
+	replacements := newReplacementMap(a)
 
 	for _, alloc := range a {
 		// Terminal allocs are always untainted as they should never be migrated
@@ -288,13 +292,9 @@ func (a allocSet) filterByTainted(taintedNodes map[string]*structs.Node, support
 		taintedNode, ok := taintedNodes[alloc.NodeID]
 		if !ok {
 			// Filter allocs on a node that is now re-connected to be resumed.
-			if supportsDisconnectedClients && triggeredBy == structs.EvalTriggerReconnect {
-				original := replacements.getOriginal(alloc.Name)
-				if original != nil {
-					fmt.Printf("reconnecting %s with status %s and id %s and previous %s\n", original.Name, original.ClientStatus, original.ID, original.PreviousAllocation)
-					reconnecting[original.ID] = original
-					continue
-				}
+			if supportsDisconnectedClients && replacements.isReconnecting(alloc) {
+				reconnecting[alloc.ID] = alloc
+				continue
 			}
 
 			// Otherwise, Node is untainted so alloc is untainted
@@ -318,13 +318,9 @@ func (a allocSet) filterByTainted(taintedNodes map[string]*structs.Node, support
 				}
 			case structs.NodeStatusReady:
 				// Filter unknown allocs on a node that is connected to reconnect.
-				if supportsDisconnectedClients && triggeredBy == structs.EvalTriggerReconnect {
-					original := replacements.getOriginal(alloc.Name)
-					if original != nil {
-						fmt.Printf("reconnecting %s with status %s and id %s and previous %s\n", original.Name, original.ClientStatus, original.ID, original.PreviousAllocation)
-						reconnecting[original.ID] = original
-						continue
-					}
+				if supportsDisconnectedClients && replacements.isReconnecting(alloc) {
+					reconnecting[alloc.ID] = alloc
+					continue
 				}
 			default:
 			}

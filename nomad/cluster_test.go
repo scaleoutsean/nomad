@@ -14,48 +14,94 @@ import (
 
 // TestCluster is a cluster of test serves and clients suitable for integration testing.
 type TestCluster struct {
-	cfg       *TestClusterConfig
-	rpcServer *Server
-	Servers   map[string]*Server
-	Clients   map[string]*client.Client
+	cfg    *TestClusterConfig
+	Server *Server
+	//rpcServer *Server
+	//Servers   map[string]*Server
+	Clients map[string]*client.Client
+}
+
+func (tc *TestCluster) PrintState(job *structs.Job) {
+	fmt.Printf("state for job %s\n", job.ID)
+
+	var err error
+	var evals []*structs.Evaluation
+	evals, err = tc.Server.State().EvalsByJob(nil, job.Name, job.ID)
+	if err != nil {
+		fmt.Printf("\terror getting evals: %s\n", err)
+	} else {
+		fmt.Println("\tevals:")
+		for _, eval := range evals {
+			fmt.Printf("\t\t%#v\n", eval)
+		}
+	}
+
+	deployments, err := tc.Server.State().DeploymentsByJobID(nil, job.Namespace, job.ID, true)
+	if err != nil {
+		fmt.Printf("\terror getting deployments: %s\n", err)
+	} else {
+		fmt.Println("\tdeployments:")
+		for _, deployment := range deployments {
+			fmt.Printf("\t\t%#v\n", deployment)
+		}
+	}
+
+	var allocs []*structs.Allocation
+	allocs, err = tc.Server.State().AllocsByJob(nil, job.Namespace, job.ID, true)
+	if err != nil {
+		fmt.Printf("\terror getting allocs: %s\n", err)
+		return
+	}
+
+	for name, testClient := range tc.Clients {
+		fmt.Printf("\tclient allocs: %s\n", name)
+		for _, alloc := range allocs {
+			if alloc.NodeID != testClient.NodeID() {
+				continue
+			}
+			fmt.Printf("\t\t%s: %s\n", alloc.Name, alloc.ClientStatus)
+		}
+		fmt.Println("")
+	}
 }
 
 type TestClusterConfig struct {
 	T                   *testing.T
-	serverFn            map[string]func(*Config)
-	clientFn            map[string]func(*config.Config)
-	expectedAllocStates []*ClientAllocState
-	expectedEvalStates  []*EvalState
+	Trace               bool
+	ServerFns           map[string]func(*Config)
+	ClientFns           map[string]func(*config.Config)
+	ExpectedAllocStates []*ClientAllocState
+	ExpectedEvalStates  []*EvalState
 }
 
 func NewTestCluster(cfg *TestClusterConfig) (*TestCluster, func() error, error) {
-	if len(cfg.serverFn) == 0 || len(cfg.clientFn) == 0 {
+	if len(cfg.ServerFns) == 0 || len(cfg.ClientFns) == 0 {
 		return nil, nil,
-			fmt.Errorf("invalid test cluster: requires both servers and client - server count %d client count %d", len(cfg.serverFn), len(cfg.clientFn))
+			fmt.Errorf("invalid test cluster: requires both servers and client - server count %d client count %d", len(cfg.ServerFns), len(cfg.ClientFns))
 	}
 
 	cluster := &TestCluster{
-		Servers: make(map[string]*Server, len(cfg.serverFn)),
-		Clients: make(map[string]*client.Client, len(cfg.clientFn)),
+		//Servers: make(map[string]*Server, len(cfg.serverFn)),
+		Clients: make(map[string]*client.Client, len(cfg.ClientFns)),
 		cfg:     cfg,
 	}
 
-	serverCleanups := make(map[string]func(), len(cfg.serverFn))
-	for name, fn := range cfg.serverFn {
+	serverCleanups := make(map[string]func(), len(cfg.ServerFns))
+	for name, fn := range cfg.ServerFns {
 		testServer, cleanup := TestServer(cfg.T, fn)
-		cluster.Servers[name] = testServer
+		cluster.Server = testServer
 		serverCleanups[name] = cleanup
-		if cluster.rpcServer == nil {
-			cluster.rpcServer = testServer
+		if cluster.Server == nil {
+			cluster.Server = testServer
 		}
 	}
 
-	testutil.WaitForLeader(cfg.T, cluster.rpcServer.RPC)
+	testutil.WaitForLeader(cfg.T, cluster.Server.RPC)
 
-	clientCleanups := make(map[string]func() error, len(cfg.clientFn))
-	for name, fn := range cfg.clientFn {
+	clientCleanups := make(map[string]func() error, len(cfg.ClientFns))
+	for name, fn := range cfg.ClientFns {
 		configFn := func(c *config.Config) {
-			c.RPCHandler = cluster.rpcServer
+			c.RPCHandler = cluster.Server
 			fn(c)
 		}
 		testClient, cleanup := client.TestClient(cfg.T, configFn)
@@ -91,7 +137,7 @@ func (tc *TestCluster) RegisterJob(job *structs.Job) error {
 	}
 
 	var regResp structs.JobRegisterResponse
-	err := tc.rpcServer.RPC("Job.Register", regReq, &regResp)
+	err := tc.Server.RPC("Job.Register", regReq, &regResp)
 	if err != nil {
 		return err
 	}
@@ -139,7 +185,7 @@ func (tc *TestCluster) WaitForJobAllocsRunning(job *structs.Job, expectedAllocCo
 	var err error
 	var allocs []*structs.Allocation
 	testutil.WaitForResult(func() (bool, error) {
-		allocs, err = tc.rpcServer.State().AllocsByJob(nil, job.Namespace, job.ID, true)
+		allocs, err = tc.Server.State().AllocsByJob(nil, job.Namespace, job.ID, true)
 		if err != nil {
 			return false, err
 		}
@@ -176,7 +222,7 @@ func (tc *TestCluster) WaitForNodeStatus(clientName, nodeStatus string) (err err
 
 	clientReady := false
 	testutil.WaitForResult(func() (bool, error) {
-		clientNode, nodeErr := tc.rpcServer.State().NodeByID(nil, testClient.Node().ID)
+		clientNode, nodeErr := tc.Server.State().NodeByID(nil, testClient.Node().ID)
 		if nodeErr != nil {
 			return false, nodeErr
 		}
@@ -230,8 +276,9 @@ func (tc *TestCluster) WaitForAllocClientStatusOnClient(clientName, allocID, cli
 func (tc *TestCluster) WaitForAllocClientStatusOnServer(allocID, clientStatus string) error {
 	var err error
 	var outAlloc *structs.Allocation
+
 	testutil.WaitForResult(func() (bool, error) {
-		outAlloc, err = tc.rpcServer.State().AllocByID(nil, allocID)
+		outAlloc, err = tc.Server.State().AllocByID(nil, allocID)
 		if err != nil {
 			return false, err
 		}
@@ -254,16 +301,17 @@ func (tc *TestCluster) WaitForAllocClientStatusOnServer(allocID, clientStatus st
 	return nil
 }
 
-func (tc *TestCluster) LatestJobEvalForTrigger(job *structs.Job, triggerBy string) (*structs.Evaluation, error) {
+func (tc *TestCluster) WaitForJobEvalByTrigger(job *structs.Job, triggerBy string) (*structs.Evaluation, error) {
 	var outEval *structs.Evaluation
 	testutil.WaitForResult(func() (bool, error) {
-		evals, err := tc.rpcServer.State().EvalsByJob(nil, job.Namespace, job.ID)
+		evals, err := tc.Server.State().EvalsByJob(nil, job.Namespace, job.ID)
 		if err != nil {
 			return false, err
 		}
 		for _, eval := range evals {
-			tc.cfg.T.Logf("found eval with triggered by %s", eval.TriggeredBy)
-
+			if tc.cfg.Trace {
+				fmt.Println("triggered by: " + eval.TriggeredBy)
+			}
 			if eval.TriggeredBy == triggerBy {
 				outEval = eval
 				break
@@ -287,20 +335,20 @@ func (tc *TestCluster) LatestJobEvalForTrigger(job *structs.Job, triggerBy strin
 func (tc *TestCluster) AsExpected(job *structs.Job) error {
 	var mErr *multierror.Error
 
-	for _, clientState := range tc.cfg.expectedAllocStates {
+	for _, clientState := range tc.cfg.ExpectedAllocStates {
 		testClient, ok := tc.Clients[clientState.clientName]
 		if !ok || testClient == nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("error validating client state: invalid client name %s", clientState.clientName))
 			continue
 		}
 
-		if err := clientState.AsExpected(tc.cfg.T, tc.rpcServer, testClient.NodeID()); err != nil {
+		if err := clientState.AsExpected(tc.cfg.T, tc.Server, testClient.NodeID()); err != nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("error validating client state for %s: \n\t%s", clientState.clientName, err))
 		}
 	}
 
-	for _, evalState := range tc.cfg.expectedEvalStates {
-		if err := evalState.AsExpected(tc.rpcServer, job); err != nil {
+	for _, evalState := range tc.cfg.ExpectedEvalStates {
+		if err := evalState.AsExpected(tc.Server, job); err != nil {
 			mErr = multierror.Append(mErr, err)
 		}
 	}

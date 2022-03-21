@@ -1436,6 +1436,7 @@ func (n *Node) createNodeEvals(nodeID string, nodeIndex uint64) ([]string, uint6
 			CreateTime:      now,
 			ModifyTime:      now,
 		}
+
 		evals = append(evals, eval)
 		evalIDs = append(evalIDs, eval.ID)
 	}

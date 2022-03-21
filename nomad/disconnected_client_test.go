@@ -43,13 +43,16 @@ func disconnectJob(jobID string) *structs.Job {
 
 func reconnectFailedAllocTestConfig(t *testing.T) *TestClusterConfig {
 	return &TestClusterConfig{
-		t, map[string]func(*Config){
+		T:     t,
+		Trace: false,
+		ServerFns: map[string]func(*Config){
 			"server1": func(c *Config) {
 				c.HeartbeatGrace = 500 * time.Millisecond
 				c.MaxHeartbeatsPerSecond = 1
 				c.MinHeartbeatTTL = 1
 			},
-		}, map[string]func(*config.Config){
+		},
+		ClientFns: map[string]func(*config.Config){
 			"client1": func(c *config.Config) {
 				c.DevMode = true
 				c.Options = make(map[string]string)
@@ -59,7 +62,8 @@ func reconnectFailedAllocTestConfig(t *testing.T) *TestClusterConfig {
 			"client2": func(c *config.Config) {
 				c.DevMode = true
 			},
-		}, []*ClientAllocState{
+		},
+		ExpectedAllocStates: []*ClientAllocState{
 			{
 				clientName: "client1",
 				failed:     1,
@@ -74,7 +78,8 @@ func reconnectFailedAllocTestConfig(t *testing.T) *TestClusterConfig {
 				running:    2,
 				stop:       0,
 			},
-		}, []*EvalState{
+		},
+		ExpectedEvalStates: []*EvalState{
 			{
 				TriggerBy: structs.EvalTriggerReconnect,
 				Count:     1,
@@ -89,13 +94,16 @@ func reconnectFailedAllocTestConfig(t *testing.T) *TestClusterConfig {
 
 func reconnectRunningAllocTestConfig(t *testing.T) *TestClusterConfig {
 	return &TestClusterConfig{
-		t, map[string]func(*Config){
+		T:     t,
+		Trace: false,
+		ServerFns: map[string]func(*Config){
 			"server1": func(c *Config) {
 				c.HeartbeatGrace = 500 * time.Millisecond
 				c.MaxHeartbeatsPerSecond = 1
 				c.MinHeartbeatTTL = 1
 			},
-		}, map[string]func(*config.Config){
+		},
+		ClientFns: map[string]func(*config.Config){
 			"client1": func(c *config.Config) {
 				c.DevMode = true
 				c.Options = make(map[string]string)
@@ -104,7 +112,8 @@ func reconnectRunningAllocTestConfig(t *testing.T) *TestClusterConfig {
 			"client2": func(c *config.Config) {
 				c.DevMode = true
 			},
-		}, []*ClientAllocState{
+		},
+		ExpectedAllocStates: []*ClientAllocState{
 			{
 				clientName: "client1",
 				failed:     0,
@@ -119,7 +128,62 @@ func reconnectRunningAllocTestConfig(t *testing.T) *TestClusterConfig {
 				running:    1,
 				stop:       1,
 			},
-		}, []*EvalState{
+		},
+		ExpectedEvalStates: []*EvalState{
+			{
+				TriggerBy: structs.EvalTriggerNodeUpdate,
+				Count:     3,
+			},
+			{
+				TriggerBy: structs.EvalTriggerReconnect,
+				Count:     0,
+			},
+			{
+				TriggerBy: structs.EvalTriggerMaxDisconnectTimeout,
+				Count:     1,
+			},
+		},
+	}
+}
+
+func reconnectPendingAllocTestConfig(t *testing.T) *TestClusterConfig {
+	return &TestClusterConfig{
+		T:     t,
+		Trace: false,
+		ServerFns: map[string]func(*Config){
+			"server1": func(c *Config) {
+				c.HeartbeatGrace = 500 * time.Millisecond
+				c.MaxHeartbeatsPerSecond = 1
+				c.MinHeartbeatTTL = 1
+			},
+		},
+		ClientFns: map[string]func(*config.Config){
+			"client1": func(c *config.Config) {
+				c.DevMode = true
+				c.Options = make(map[string]string)
+				c.Options["test.heartbeat_failer.enabled"] = "true"
+			},
+			"client2": func(c *config.Config) {
+				c.DevMode = true
+			},
+		},
+		ExpectedAllocStates: []*ClientAllocState{
+			{
+				clientName: "client1",
+				failed:     0,
+				pending:    0,
+				running:    0,
+				stop:       1,
+			},
+			{
+				clientName: "client2",
+				failed:     0,
+				pending:    0,
+				running:    2,
+				stop:       2,
+			},
+		},
+		ExpectedEvalStates: []*EvalState{
 			{
 				TriggerBy: structs.EvalTriggerReconnect,
 				Count:     1,
