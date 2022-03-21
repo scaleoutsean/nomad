@@ -111,7 +111,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          GO_TAGS: "${{ env.GO_TAGS }}"
+          GO_TAGS: ${{ env.GO_TAGS }}
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
         run: |
@@ -186,7 +186,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          GO_TAGS: "${{ env.GO_TAGS }}"
+          GO_TAGS: ${{ env.GO_TAGS }}
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
         run: |
@@ -201,7 +201,7 @@ jobs:
         if: ${{ matrix.goos == 'linux' }}
         uses: hashicorp/actions-packaging-linux@v1
         with:
-          name: ${{ env.PKG_NAME }}
+          name: ${{ env.PKG_NAME }}-enterprise
           description: "Nomad is an easy-to-use, flexible, and performant workload orchestrator that can deploy a mix of microservice, batch, containerized, and non-containerized applications."
           arch: ${{ matrix.goarch }}
           version: ${{ needs.get-product-version.outputs.product-version }}

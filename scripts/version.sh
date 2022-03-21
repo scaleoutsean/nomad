@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 
 version_file=$1
