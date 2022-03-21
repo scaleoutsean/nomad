@@ -114,7 +114,9 @@ jobs:
           GO_TAGS: "${{ env.GO_TAGS }}"
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
-        run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+        run: |
+          make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          mv pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
@@ -187,7 +189,9 @@ jobs:
           GO_TAGS: "${{ env.GO_TAGS }}"
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
-        run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+        run: |
+          make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          mv pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
@@ -271,7 +275,9 @@ jobs:
           GO_TAGS: "${{ env.GO_TAGS }} netcgo"
           GO_LDFLAGS: ${{ needs.generate-ld-flags.outputs.ldflags }}
           CGO_ENABLED: 1
-        run: make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+        run: |
+          make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          mv pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
