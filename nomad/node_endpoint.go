@@ -492,7 +492,6 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 	// Check if we should trigger evaluations
 	transitionToReady := transitionedToReady(args.Status, node.Status)
 	if structs.ShouldDrainNode(args.Status) || transitionToReady || args.Status == structs.NodeStatusDisconnected {
-		n.logger.Trace("UpdateStatus", "name", node.Name, "status", args.Status)
 		evalIDs, evalIndex, err := n.createNodeEvals(args.NodeID, index)
 		if err != nil {
 			n.logger.Error("eval creation failed", "error", err)
@@ -1438,7 +1437,6 @@ func (n *Node) createNodeEvals(nodeID string, nodeIndex uint64) ([]string, uint6
 			ModifyTime:      now,
 		}
 
-		n.logger.Trace("createNodeEvals", "id", eval.ID, "status", eval.Status)
 		evals = append(evals, eval)
 		evalIDs = append(evalIDs, eval.ID)
 	}
@@ -1482,7 +1480,6 @@ func (n *Node) createNodeEvals(nodeID string, nodeIndex uint64) ([]string, uint6
 	if err != nil {
 		return nil, 0, err
 	}
-	n.logger.Trace("createNodeEvals", "index", evalIndex)
 	return evalIDs, evalIndex, nil
 }
 

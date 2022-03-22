@@ -412,7 +412,6 @@ func (w *Worker) run() {
 
 		// Wait for the raft log to catchup to the evaluation
 		w.setWorkloadStatus(WorkloadWaitingForRaft)
-		w.logger.Trace("worker snapshot index", "index", waitIndex)
 		snap, err := w.snapshotMinIndex(waitIndex, raftSyncLimit)
 		if err != nil {
 			w.logger.Error("error waiting for Raft index", "error", err, "index", waitIndex)

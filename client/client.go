@@ -1873,6 +1873,9 @@ func (c *Client) registerNode() error {
 
 // updateNodeStatus is used to heartbeat and update the status of the node
 func (c *Client) updateNodeStatus() error {
+	if c.failHeartbeat {
+		return errors.New("failing heartbeat per test configuration")
+	}
 	start := time.Now()
 	req := structs.NodeUpdateStatusRequest{
 		NodeID:       c.NodeID(),
@@ -1880,11 +1883,6 @@ func (c *Client) updateNodeStatus() error {
 		WriteRequest: structs.WriteRequest{Region: c.Region()},
 	}
 	var resp structs.NodeUpdateResponse
-	// If test instrumentation is enabled skip heartbeating
-	if c.failHeartbeat {
-		time.Sleep(500 * time.Millisecond)
-		return fmt.Errorf("failing heartbeat per test config")
-	}
 	if err := c.RPC("Node.UpdateStatus", &req, &resp); err != nil {
 		c.triggerDiscovery()
 		return fmt.Errorf("failed to update status: %v", err)

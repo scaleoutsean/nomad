@@ -360,18 +360,11 @@ func (s *GenericScheduler) computeJobAllocs() error {
 			s.eval.JobID, err)
 	}
 
-	s.logger.Trace("computeJobAllocs", "eval_index", s.eval.ModifyIndex)
-
 	// Determine the tainted nodes containing job allocs
 	tainted, err := taintedNodes(s.state, allocs)
 	if err != nil {
 		return fmt.Errorf("failed to get tainted nodes for job '%s': %v",
 			s.eval.JobID, err)
-	}
-
-	s.logger.Trace("tainted", "len", len(tainted))
-	for k, n := range tainted {
-		s.logger.Trace("tainted", "nodeName", n.Name, "nodeID", k)
 	}
 
 	// Update the allocations which are in pending/running state on tainted

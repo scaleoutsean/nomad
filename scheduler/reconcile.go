@@ -73,8 +73,8 @@ type allocReconciler struct {
 	// existingAllocs is non-terminal existing allocations
 	existingAllocs []*structs.Allocation
 
-	// evalID, evalPriority, evalTriggeredBy are the ID, Priority, and event type
-	// of the evaluation that triggered the reconciler.
+	// evalID and evalPriority is the ID and Priority of the evaluation that
+	// triggered the reconciler.
 	evalID       string
 	evalPriority int
 
@@ -405,15 +405,8 @@ func (a *allocReconciler) computeGroup(groupName string, all allocSet) bool {
 
 	canaries, all := a.cancelUnneededCanaries(all, desiredChanges)
 
-	for _, n := range a.taintedNodes {
-		a.logger.Trace("tainted: %s - %s", n.Status, n.Name)
-	}
-
 	// Determine what set of allocations are on tainted nodes
 	untainted, migrate, lost, disconnecting, reconnecting := all.filterByTainted(a.taintedNodes, a.supportsDisconnectedClients)
-
-	a.logger.Trace("disconnecting: %d", len(disconnecting))
-	a.logger.Trace("reconnecting: %d", len(reconnecting))
 
 	// Determine what set of terminal allocations need to be rescheduled
 	untainted, rescheduleNow, rescheduleLater := untainted.filterByRescheduleable(a.batch, a.now, a.evalID, a.deployment)
@@ -720,7 +713,7 @@ func (a *allocReconciler) computePlacements(group *structs.TaskGroup,
 		})
 	}
 
-	// Add replacements for disconnecting
+	// Add replacements for lost
 	for _, alloc := range lost {
 		if existing >= group.Count {
 			// Reached desired count, do not replace remaining lost
@@ -1036,18 +1029,6 @@ func (a *allocReconciler) computeStopByReconnecting(untainted, reconnecting, sto
 	}
 
 	for _, reconnectingAlloc := range reconnecting {
-		// If the reconnecting alloc went terminal during the disconnect don't process it.
-		//if reconnectingAlloc.ClientTerminalStatus() {
-		//	delete(reconnecting, reconnectingAlloc.ID)
-		//
-		//	remove--
-		//	// if we've removed all we need to, stop iterating and return.
-		//	if remove == 0 {
-		//		return remove
-		//	}
-		//	continue
-		//}
-
 		// if the desired status is not run, or if the user-specified desired
 		// transition is not run, stop the reconnecting allocation.
 		if reconnectingAlloc.DesiredStatus != structs.AllocDesiredStatusRun ||
@@ -1099,7 +1080,7 @@ func (a *allocReconciler) computeStopByReconnecting(untainted, reconnecting, sto
 				deleteSet = reconnecting
 			}
 
-			fmt.Printf("reconnect is stopping %s with id %s on node %s\n", stopAlloc.Name, stopAlloc.ID, stopAlloc.NodeID)
+			a.logger.Trace("reconnect is stopping", "alloc_name", stopAlloc.Name, "alloc_id", stopAlloc.ID, "node_id", stopAlloc.NodeID)
 
 			stop[stopAlloc.ID] = stopAlloc
 			a.result.stop = append(a.result.stop, allocStopResult{
