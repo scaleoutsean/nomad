@@ -1,6 +1,6 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
-import { run } from '@ember/runloop';
+import { next } from '@ember/runloop';
 import { action } from '@ember/object';
 import { minIndex, max } from 'd3-array';
 
@@ -14,7 +14,7 @@ export default class FlexMasonry extends Component {
 
   @action
   reflow() {
-    run.next(() => {
+    next(() => {
       // There's nothing to do if there is no element
       if (!this.element) return;
 
@@ -34,7 +34,7 @@ export default class FlexMasonry extends Component {
 
       const columns = new Array(this.args.columns).fill(null).map(() => ({
         height: 0,
-        elements: [],
+        elements: []
       }));
 
       // First pass: assign each element to a column based on the running heights of each column
@@ -45,7 +45,7 @@ export default class FlexMasonry extends Component {
         const height = item.clientHeight;
 
         // Pick the shortest column accounting for margins
-        const column = columns[minIndex(columns, (c) => c.height)];
+        const column = columns[minIndex(columns, c => c.height)];
 
         // Add the new element's height to the column height
         column.height += marginTop + height + marginBottom;

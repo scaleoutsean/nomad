@@ -5,7 +5,9 @@ import { AbortError } from '@ember-data/adapter/error';
 import queryString from 'query-string';
 import ApplicationAdapter from './application';
 import removeRecord from '../utils/remove-record';
+import classic from 'ember-classic-decorator';
 
+@classic
 export default class Watchable extends ApplicationAdapter {
   @service watchList;
   @service store;
@@ -46,7 +48,7 @@ export default class Watchable extends ApplicationAdapter {
     );
     return this.ajax(url, 'GET', {
       signal,
-      data: params,
+      data: params
     });
   }
 
@@ -71,8 +73,8 @@ export default class Watchable extends ApplicationAdapter {
     const signal = get(snapshot || {}, 'adapterOptions.abortController.signal');
     return this.ajax(url, 'GET', {
       signal,
-      data: params,
-    }).catch((error) => {
+      data: params
+    }).catch(error => {
       if (error instanceof AbortError || error.name == 'AbortError') {
         return;
       }
@@ -108,29 +110,29 @@ export default class Watchable extends ApplicationAdapter {
     const signal = get(options, 'adapterOptions.abortController.signal');
     return this.ajax(urlPath, 'GET', {
       signal,
-      data: params,
-    }).then((payload) => {
+      data: params
+    }).then(payload => {
       const adapter = store.adapterFor(type.modelName);
 
       // Query params may not necessarily map one-to-one to attribute names.
       // Adapters are responsible for declaring param mappings.
       const queryParamsToAttrs = Object.keys(
         adapter.queryParamsToAttrs || {}
-      ).map((key) => ({
+      ).map(key => ({
         queryParam: key,
-        attr: adapter.queryParamsToAttrs[key],
+        attr: adapter.queryParamsToAttrs[key]
       }));
 
       // Remove existing records that match this query. This way if server-side
       // deletes have occurred, the store won't have stale records.
       store
         .peekAll(type.modelName)
-        .filter((record) =>
+        .filter(record =>
           queryParamsToAttrs.some(
-            (mapping) => get(record, mapping.attr) === query[mapping.queryParam]
+            mapping => get(record, mapping.attr) === query[mapping.queryParam]
           )
         )
-        .forEach((record) => {
+        .forEach(record => {
           removeRecord(store, record);
         });
 
@@ -161,16 +163,16 @@ export default class Watchable extends ApplicationAdapter {
       // in the URL and in options.data
       if (url.includes('?')) {
         const paramsInUrl = queryString.parse(url.split('?')[1]);
-        Object.keys(paramsInUrl).forEach((key) => {
+        Object.keys(paramsInUrl).forEach(key => {
           delete params[key];
         });
       }
 
       return this.ajax(url, 'GET', {
         signal: abortController && abortController.signal,
-        data: params,
+        data: params
       }).then(
-        (json) => {
+        json => {
           const store = this.store;
           const normalizeMethod =
             relationship.kind === 'belongsTo'
@@ -185,7 +187,7 @@ export default class Watchable extends ApplicationAdapter {
           );
           store.push(normalizedData);
         },
-        (error) => {
+        error => {
           if (error instanceof AbortError || error.name === 'AbortError') {
             return relationship.kind === 'belongsTo' ? {} : [];
           }

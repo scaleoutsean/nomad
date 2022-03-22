@@ -12,6 +12,7 @@ import { formatBytes, formatHertz, replaceMinus } from 'nomad-ui/utils/units';
 import Optimize from 'nomad-ui/tests/pages/optimize';
 import Layout from 'nomad-ui/tests/pages/layout';
 import JobsList from 'nomad-ui/tests/pages/jobs/list';
+import collapseWhitespace from '../helpers/collapse-whitespace';
 
 let managementToken, clientToken;
 
@@ -27,11 +28,11 @@ function getLatestRecommendationSubmitTimeForJob(job) {
   return Math.max(...recommendations.mapBy('submitTime'));
 }
 
-module('Acceptance | optimize', function (hooks) {
+module('Acceptance | optimize', function(hooks) {
   setupApplicationTest(hooks);
   setupMirage(hooks);
 
-  hooks.beforeEach(async function () {
+  hooks.beforeEach(async function() {
     server.create('feature', { name: 'Dynamic Application Sizing' });
 
     server.create('node');
@@ -42,7 +43,7 @@ module('Acceptance | optimize', function (hooks) {
       createRecommendations: true,
       groupsCount: 1,
       groupTaskCount: 2,
-      namespaceId: server.db.namespaces[1].id,
+      namespaceId: server.db.namespaces[1].id
     });
 
     jobs.sort((jobA, jobB) => {
@@ -61,19 +62,19 @@ module('Acceptance | optimize', function (hooks) {
     window.localStorage.nomadTokenSecret = managementToken.secretId;
   });
 
-  test('it passes an accessibility audit', async function (assert) {
+  test('it passes an accessibility audit', async function(assert) {
     await Optimize.visit();
     await a11yAudit(assert);
   });
 
-  test('lets recommendations be toggled, reports the choices to the recommendations API, and displays task group recommendations serially', async function (assert) {
+  test('lets recommendations be toggled, reports the choices to the recommendations API, and displays task group recommendations serially', async function(assert) {
     const currentTaskGroup = this.job1.taskGroups.models[0];
     const nextTaskGroup = this.job2.taskGroups.models[0];
 
     const currentTaskGroupHasCPURecommendation = currentTaskGroup.tasks.models
       .mapBy('recommendations.models')
       .flat()
-      .find((r) => r.resource === 'CPU');
+      .find(r => r.resource === 'CPU');
 
     // If no CPU recommendation, will not be able to accept recommendation with all memory recommendations turned off
 
@@ -81,7 +82,7 @@ module('Acceptance | optimize', function (hooks) {
       const currentTaskGroupTask = currentTaskGroup.tasks.models[0];
       this.server.create('recommendation', {
         task: currentTaskGroupTask,
-        resource: 'CPU',
+        resource: 'CPU'
       });
     }
 
@@ -118,7 +119,7 @@ module('Acceptance | optimize', function (hooks) {
       ...currentRecommendations.mapBy('submitTime')
     );
 
-    Optimize.recommendationSummaries[0].as((summary) => {
+    Optimize.recommendationSummaries[0].as(summary => {
       assert.equal(
         summary.date,
         moment(new Date(latestSubmitTime / 1000000)).format(
@@ -128,7 +129,7 @@ module('Acceptance | optimize', function (hooks) {
 
       const currentTaskGroupAllocations = server.schema.allocations.where({
         jobId: currentTaskGroup.job.name,
-        taskGroup: currentTaskGroup.name,
+        taskGroup: currentTaskGroup.name
       });
       assert.equal(summary.allocationCount, currentTaskGroupAllocations.length);
 
@@ -230,7 +231,7 @@ module('Acceptance | optimize', function (hooks) {
     );
 
     const currentTaskIds = currentTaskGroup.tasks.models.mapBy('id');
-    const taskIdFilter = (task) => currentTaskIds.includes(task.taskId);
+    const taskIdFilter = task => currentTaskIds.includes(task.taskId);
 
     const cpuRecommendationIds = server.schema.recommendations
       .where({ resource: 'CPU' })
@@ -265,12 +266,12 @@ module('Acceptance | optimize', function (hooks) {
     assert.ok(Optimize.recommendationSummaries[1].isActive);
   });
 
-  test('can navigate between summaries via the table', async function (assert) {
+  test('can navigate between summaries via the table', async function(assert) {
     server.createList('job', 10, {
       createRecommendations: true,
       groupsCount: 1,
       groupTaskCount: 2,
-      namespaceId: server.db.namespaces[1].id,
+      namespaceId: server.db.namespaces[1].id
     });
 
     await Optimize.visit();
@@ -283,12 +284,12 @@ module('Acceptance | optimize', function (hooks) {
     assert.ok(Optimize.recommendationSummaries[1].isActive);
   });
 
-  test('can visit a summary directly via URL', async function (assert) {
+  test('can visit a summary directly via URL', async function(assert) {
     server.createList('job', 10, {
       createRecommendations: true,
       groupsCount: 1,
       groupTaskCount: 2,
-      namespaceId: server.db.namespaces[1].id,
+      namespaceId: server.db.namespaces[1].id
     });
 
     await Optimize.visit();
@@ -315,7 +316,7 @@ module('Acceptance | optimize', function (hooks) {
     );
   });
 
-  test('when a summary is not found, an error message is shown, but the URL persists', async function (assert) {
+  test('when a summary is not found, an error message is shown, but the URL persists', async function(assert) {
     await visit('/optimize/nonexistent/summary?namespace=anamespace');
 
     assert.equal(
@@ -326,7 +327,7 @@ module('Acceptance | optimize', function (hooks) {
     assert.equal(Optimize.applicationError.title, 'Not Found');
   });
 
-  test('cannot return to already-processed summaries', async function (assert) {
+  test('cannot return to already-processed summaries', async function(assert) {
     await Optimize.visit();
     await Optimize.card.acceptButton.click();
 
@@ -337,12 +338,12 @@ module('Acceptance | optimize', function (hooks) {
     assert.ok(Optimize.recommendationSummaries[1].isActive);
   });
 
-  test('can dismiss a set of recommendations', async function (assert) {
+  test('can dismiss a set of recommendations', async function(assert) {
     await Optimize.visit();
 
     const currentTaskGroup = this.job1.taskGroups.models[0];
     const currentTaskIds = currentTaskGroup.tasks.models.mapBy('id');
-    const taskIdFilter = (task) => currentTaskIds.includes(task.taskId);
+    const taskIdFilter = task => currentTaskIds.includes(task.taskId);
 
     const idsBeforeDismissal = server.schema.recommendations
       .all()
@@ -362,8 +363,8 @@ module('Acceptance | optimize', function (hooks) {
     assert.deepEqual(Dismiss, idsBeforeDismissal);
   });
 
-  test('it displays an error encountered trying to save and proceeds to the next summary when the error is dismissed', async function (assert) {
-    server.post('/recommendations/apply', function () {
+  test('it displays an error encountered trying to save and proceeds to the next summary when the error is dismissed', async function(assert) {
+    server.post('/recommendations/apply', function() {
       return new Response(500, {}, null);
     });
 
@@ -381,7 +382,7 @@ module('Acceptance | optimize', function (hooks) {
     assert.equal(Optimize.card.slug.jobName, this.job2.name);
   });
 
-  test('it displays an empty message when there are no recommendations', async function (assert) {
+  test('it displays an empty message when there are no recommendations', async function(assert) {
     server.db.recommendations.remove();
     await Optimize.visit();
 
@@ -389,7 +390,7 @@ module('Acceptance | optimize', function (hooks) {
     assert.equal(Optimize.empty.headline, 'No Recommendations');
   });
 
-  test('it displays an empty message after all recommendations have been processed', async function (assert) {
+  test('it displays an empty message after all recommendations have been processed', async function(assert) {
     await Optimize.visit();
 
     await Optimize.card.acceptButton.click();
@@ -398,7 +399,7 @@ module('Acceptance | optimize', function (hooks) {
     assert.ok(Optimize.empty.isPresent);
   });
 
-  test('it redirects to jobs and hides the gutter link when the token lacks permissions', async function (assert) {
+  test('it redirects to jobs and hides the gutter link when the token lacks permissions', async function(assert) {
     window.localStorage.nomadTokenSecret = clientToken.secretId;
     await Optimize.visit();
 
@@ -406,7 +407,7 @@ module('Acceptance | optimize', function (hooks) {
     assert.ok(Layout.gutter.optimize.isHidden);
   });
 
-  test('it reloads partially-loaded jobs', async function (assert) {
+  test('it reloads partially-loaded jobs', async function(assert) {
     await JobsList.visit();
     await Optimize.visit();
 
@@ -414,11 +415,11 @@ module('Acceptance | optimize', function (hooks) {
   });
 });
 
-module('Acceptance | optimize search and facets', function (hooks) {
+module('Acceptance | optimize search and facets', function(hooks) {
   setupApplicationTest(hooks);
   setupMirage(hooks);
 
-  hooks.beforeEach(async function () {
+  hooks.beforeEach(async function() {
     server.create('feature', { name: 'Dynamic Application Sizing' });
 
     server.create('node');
@@ -431,12 +432,12 @@ module('Acceptance | optimize search and facets', function (hooks) {
     window.localStorage.nomadTokenSecret = managementToken.secretId;
   });
 
-  test('search field narrows summary table results, changes the active summary if it no longer matches, and displays a no matches message when there are none', async function (assert) {
+  test('search field narrows summary table results, changes the active summary if it no longer matches, and displays a no matches message when there are none', async function(assert) {
     server.create('job', {
       name: 'zzzzzz',
       createRecommendations: true,
       groupsCount: 1,
-      groupTaskCount: 6,
+      groupTaskCount: 6
     });
 
     // Ensure this job’s recommendations are sorted to the top of the table
@@ -447,14 +448,14 @@ module('Acceptance | optimize search and facets', function (hooks) {
       name: 'oooooo',
       createRecommendations: true,
       groupsCount: 2,
-      groupTaskCount: 4,
+      groupTaskCount: 4
     });
 
     server.create('job', {
       name: 'pppppp',
       createRecommendations: true,
       groupsCount: 2,
-      groupTaskCount: 4,
+      groupTaskCount: 4
     });
 
     await Optimize.visit();
@@ -462,7 +463,7 @@ module('Acceptance | optimize search and facets', function (hooks) {
     assert.equal(Optimize.card.slug.jobName, 'zzzzzz');
 
     assert.equal(
-      Optimize.search.placeholder,
+      collapseWhitespace(Optimize.search.placeholder),
       `Search ${Optimize.recommendationSummaries.length} recommendations...`
     );
 
@@ -487,13 +488,13 @@ module('Acceptance | optimize search and facets', function (hooks) {
     assert.ok(Optimize.recommendationSummaries[0].isActive);
   });
 
-  test('the namespaces toggle doesn’t show when there aren’t namespaces', async function (assert) {
+  test('the namespaces toggle doesn’t show when there aren’t namespaces', async function(assert) {
     server.db.namespaces.remove();
 
     server.create('job', {
       createRecommendations: true,
       groupsCount: 1,
-      groupTaskCount: 4,
+      groupTaskCount: 4
     });
 
     await Optimize.visit();
@@ -501,26 +502,26 @@ module('Acceptance | optimize search and facets', function (hooks) {
     assert.ok(Optimize.facets.namespace.isHidden);
   });
 
-  test('processing a summary moves to the next one in the sorted list', async function (assert) {
+  test('processing a summary moves to the next one in the sorted list', async function(assert) {
     server.create('job', {
       name: 'ooo111',
       createRecommendations: true,
       groupsCount: 1,
-      groupTaskCount: 4,
+      groupTaskCount: 4
     });
 
     server.create('job', {
       name: 'pppppp',
       createRecommendations: true,
       groupsCount: 1,
-      groupTaskCount: 4,
+      groupTaskCount: 4
     });
 
     server.create('job', {
       name: 'ooo222',
       createRecommendations: true,
       groupsCount: 1,
-      groupTaskCount: 4,
+      groupTaskCount: 4
     });
 
     // Directly set the sorting of the above jobs’s summaries in the table
@@ -531,10 +532,10 @@ module('Acceptance | optimize search and facets', function (hooks) {
     const jobNameToRecommendationSubmitTime = {
       ooo111: futureSubmitTime,
       pppppp: nowSubmitTime,
-      ooo222: pastSubmitTime,
+      ooo222: pastSubmitTime
     };
 
-    server.schema.recommendations.all().models.forEach((recommendation) => {
+    server.schema.recommendations.all().models.forEach(recommendation => {
       const parentJob = recommendation.task.taskGroup.job;
       const submitTimeForJob =
         jobNameToRecommendationSubmitTime[parentJob.name];
@@ -549,11 +550,11 @@ module('Acceptance | optimize search and facets', function (hooks) {
     assert.equal(Optimize.card.slug.jobName, 'ooo222');
   });
 
-  test('the optimize page has appropriate faceted search options', async function (assert) {
+  test('the optimize page has appropriate faceted search options', async function(assert) {
     server.createList('job', 4, {
       status: 'running',
       createRecommendations: true,
-      childrenCount: 0,
+      childrenCount: 0
     });
 
     await Optimize.visit();
@@ -573,17 +574,17 @@ module('Acceptance | optimize search and facets', function (hooks) {
     async beforeEach() {
       server.createList('job', 2, {
         namespaceId: 'default',
-        createRecommendations: true,
+        createRecommendations: true
       });
       server.createList('job', 2, {
         namespaceId: 'namespace-1',
-        createRecommendations: true,
+        createRecommendations: true
       });
       await Optimize.visit();
     },
     filter(taskGroup, selection) {
       return taskGroup.job.namespaceId === selection;
-    },
+    }
   });
 
   testFacet('Type', {
@@ -595,21 +596,21 @@ module('Acceptance | optimize search and facets', function (hooks) {
         type: 'service',
         createRecommendations: true,
         groupsCount: 1,
-        groupTaskCount: 2,
+        groupTaskCount: 2
       });
 
       server.createList('job', 2, {
         type: 'system',
         createRecommendations: true,
         groupsCount: 1,
-        groupTaskCount: 2,
+        groupTaskCount: 2
       });
       await Optimize.visit();
     },
     filter(taskGroup, selection) {
       let displayType = taskGroup.job.type;
       return selection.includes(displayType);
-    },
+    }
   });
 
   testFacet('Status', {
@@ -622,23 +623,23 @@ module('Acceptance | optimize search and facets', function (hooks) {
         createRecommendations: true,
         groupsCount: 1,
         groupTaskCount: 2,
-        childrenCount: 0,
+        childrenCount: 0
       });
       server.createList('job', 2, {
         status: 'running',
         createRecommendations: true,
         groupsCount: 1,
         groupTaskCount: 2,
-        childrenCount: 0,
+        childrenCount: 0
       });
       server.createList('job', 2, {
         status: 'dead',
         createRecommendations: true,
-        childrenCount: 0,
+        childrenCount: 0
       });
       await Optimize.visit();
     },
-    filter: (taskGroup, selection) => selection.includes(taskGroup.job.status),
+    filter: (taskGroup, selection) => selection.includes(taskGroup.job.status)
   });
 
   testFacet('Datacenter', {
@@ -656,38 +657,38 @@ module('Acceptance | optimize search and facets', function (hooks) {
         createRecommendations: true,
         groupsCount: 1,
         groupTaskCount: 2,
-        childrenCount: 0,
+        childrenCount: 0
       });
       server.create('job', {
         datacenters: ['pdx', 'ord'],
         createRecommendations: true,
         groupsCount: 1,
         groupTaskCount: 2,
-        childrenCount: 0,
+        childrenCount: 0
       });
       server.create('job', {
         datacenters: ['lax', 'jfk'],
         createRecommendations: true,
         groupsCount: 1,
         groupTaskCount: 2,
-        childrenCount: 0,
+        childrenCount: 0
       });
       server.create('job', {
         datacenters: ['jfk', 'dfw'],
         createRecommendations: true,
         groupsCount: 1,
         groupTaskCount: 2,
-        childrenCount: 0,
+        childrenCount: 0
       });
       server.create('job', {
         datacenters: ['pdx'],
         createRecommendations: true,
-        childrenCount: 0,
+        childrenCount: 0
       });
       await Optimize.visit();
     },
     filter: (taskGroup, selection) =>
-      taskGroup.job.datacenters.find((dc) => selection.includes(dc)),
+      taskGroup.job.datacenters.find(dc => selection.includes(dc))
   });
 
   testFacet('Prefix', {
@@ -704,21 +705,21 @@ module('Acceptance | optimize search and facets', function (hooks) {
         'hashi.two',
         'hashi-three',
         'nmd_two',
-        'noprefix',
-      ].forEach((name) => {
+        'noprefix'
+      ].forEach(name => {
         server.create('job', {
           name,
           createRecommendations: true,
           createAllocations: true,
           groupsCount: 1,
           groupTaskCount: 2,
-          childrenCount: 0,
+          childrenCount: 0
         });
       });
       await Optimize.visit();
     },
     filter: (taskGroup, selection) =>
-      selection.find((prefix) => taskGroup.job.name.startsWith(prefix)),
+      selection.find(prefix => taskGroup.job.name.startsWith(prefix))
   });
 
   async function facetOptions(assert, beforeEach, facet, expectedOptions) {
@@ -733,7 +734,7 @@ module('Acceptance | optimize search and facets', function (hooks) {
     }
 
     assert.deepEqual(
-      facet.options.map((option) => option.label.trim()),
+      facet.options.map(option => option.label.trim()),
       expectation,
       'Options for facet are as expected'
     );
@@ -743,11 +744,11 @@ module('Acceptance | optimize search and facets', function (hooks) {
     label,
     { facet, paramName, beforeEach, filter, expectedOptions, optionToSelect }
   ) {
-    test(`the ${label} facet has the correct options`, async function (assert) {
+    test(`the ${label} facet has the correct options`, async function(assert) {
       await facetOptions.call(this, assert, beforeEach, facet, expectedOptions);
     });
 
-    test(`the ${label} facet filters the jobs list by ${label}`, async function (assert) {
+    test(`the ${label} facet filters the jobs list by ${label}`, async function(assert) {
       await beforeEach();
       await facet.toggle();
 
@@ -763,7 +764,7 @@ module('Acceptance | optimize search and facets', function (hooks) {
         .find(sortedRecommendations.mapBy('taskId').uniq())
         .models.mapBy('taskGroup')
         .uniqBy('id')
-        .filter((group) => filter(group, selection));
+        .filter(group => filter(group, selection));
 
       Optimize.recommendationSummaries.forEach((summary, index) => {
         const group = recommendationTaskGroups[index];
@@ -771,7 +772,7 @@ module('Acceptance | optimize search and facets', function (hooks) {
       });
     });
 
-    test(`selecting an option in the ${label} facet updates the ${paramName} query param`, async function (assert) {
+    test(`selecting an option in the ${label} facet updates the ${paramName} query param`, async function(assert) {
       await beforeEach();
       await facet.toggle();
 
@@ -790,11 +791,11 @@ module('Acceptance | optimize search and facets', function (hooks) {
     label,
     { facet, paramName, beforeEach, filter, expectedOptions }
   ) {
-    test(`the ${label} facet has the correct options`, async function (assert) {
+    test(`the ${label} facet has the correct options`, async function(assert) {
       await facetOptions.call(this, assert, beforeEach, facet, expectedOptions);
     });
 
-    test(`the ${label} facet filters the recommendation summaries by ${label}`, async function (assert) {
+    test(`the ${label} facet filters the recommendation summaries by ${label}`, async function(assert) {
       let option;
 
       await beforeEach();
@@ -813,7 +814,7 @@ module('Acceptance | optimize search and facets', function (hooks) {
         .find(sortedRecommendations.mapBy('taskId').uniq())
         .models.mapBy('taskGroup')
         .uniqBy('id')
-        .filter((group) => filter(group, selection));
+        .filter(group => filter(group, selection));
 
       Optimize.recommendationSummaries.forEach((summary, index) => {
         const group = recommendationTaskGroups[index];
@@ -821,7 +822,7 @@ module('Acceptance | optimize search and facets', function (hooks) {
       });
     });
 
-    test(`selecting multiple options in the ${label} facet results in a broader search`, async function (assert) {
+    test(`selecting multiple options in the ${label} facet results in a broader search`, async function(assert) {
       const selection = [];
 
       await beforeEach();
@@ -842,7 +843,7 @@ module('Acceptance | optimize search and facets', function (hooks) {
         .find(sortedRecommendations.mapBy('taskId').uniq())
         .models.mapBy('taskGroup')
         .uniqBy('id')
-        .filter((group) => filter(group, selection));
+        .filter(group => filter(group, selection));
 
       Optimize.recommendationSummaries.forEach((summary, index) => {
         const group = recommendationTaskGroups[index];
@@ -850,7 +851,7 @@ module('Acceptance | optimize search and facets', function (hooks) {
       });
     });
 
-    test(`selecting options in the ${label} facet updates the ${paramName} query param`, async function (assert) {
+    test(`selecting options in the ${label} facet updates the ${paramName} query param`, async function(assert) {
       const selection = [];
 
       await beforeEach();

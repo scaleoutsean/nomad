@@ -2,7 +2,7 @@
 import Component from '@ember/component';
 import { computed, set } from '@ember/object';
 import { observes } from '@ember-decorators/object';
-import { run } from '@ember/runloop';
+import { run, once } from '@ember/runloop';
 import { assign } from '@ember/polyfills';
 import { guidFor } from '@ember/object/internals';
 import { copy } from 'ember-copy';
@@ -45,7 +45,10 @@ export default class DistributionBar extends Component.extend(WindowResizable) {
         index,
         percent: value / sum,
         offset:
-          data.slice(0, index).mapBy('value').reduce(sumAggregate, 0) / sum,
+          data
+            .slice(0, index)
+            .mapBy('value')
+            .reduce(sumAggregate, 0) / sum
       })
     );
   }
@@ -190,6 +193,6 @@ export default class DistributionBar extends Component.extend(WindowResizable) {
   /* eslint-enable */
 
   windowResizeHandler() {
-    run.once(this, this.renderChart);
+    once(this, this.renderChart);
   }
 }

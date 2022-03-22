@@ -1,14 +1,15 @@
 import Component from '@ember/component';
-import { classNames } from '@ember-decorators/component';
+import { classNames, attributeBindings } from '@ember-decorators/component';
 import { task } from 'ember-concurrency';
 import { action, set } from '@ember/object';
 import { inject as service } from '@ember/service';
-import { debounce, run } from '@ember/runloop';
+import { debounce, next } from '@ember/runloop';
 
 const SLASH_KEY = '/';
 const MAXIMUM_RESULTS = 10;
 
 @classNames('global-search-container')
+@attributeBindings('data-test-search-parent')
 export default class GlobalSearchControl extends Component {
   @service router;
   @service token;
@@ -42,7 +43,7 @@ export default class GlobalSearchControl extends Component {
     document.removeEventListener('keydown', this._keyDownHandler);
   }
 
-  @task(function* (string) {
+  @task(function*(string) {
     const searchResponse = yield this.token.authorizedRequest(
       '/v1/search/fuzzy',
       {
@@ -50,8 +51,8 @@ export default class GlobalSearchControl extends Component {
         body: JSON.stringify({
           Text: string,
           Context: 'all',
-          Namespace: '*',
-        }),
+          Namespace: '*'
+        })
       }
     );
 
@@ -69,7 +70,7 @@ export default class GlobalSearchControl extends Component {
         type: 'job',
         id,
         namespace,
-        label: `${namespace} > ${name}`,
+        label: `${namespace} > ${name}`
       }));
 
     const nodeResults = allNodeResults
@@ -77,7 +78,7 @@ export default class GlobalSearchControl extends Component {
       .map(({ ID: name, Scope: [id] }) => ({
         type: 'node',
         id,
-        label: name,
+        label: name
       }));
 
     const allocationResults = allAllocationResults
@@ -85,7 +86,7 @@ export default class GlobalSearchControl extends Component {
       .map(({ ID: name, Scope: [namespace, id] }) => ({
         type: 'allocation',
         id,
-        label: `${namespace} > ${name}`,
+        label: `${namespace} > ${name}`
       }));
 
     const taskGroupResults = allTaskGroupResults
@@ -95,7 +96,7 @@ export default class GlobalSearchControl extends Component {
         id,
         namespace,
         jobId,
-        label: `${namespace} > ${jobId} > ${id}`,
+        label: `${namespace} > ${jobId} > ${id}`
       }));
 
     const csiPluginResults = allCSIPluginResults
@@ -103,7 +104,7 @@ export default class GlobalSearchControl extends Component {
       .map(({ ID: id }) => ({
         type: 'plugin',
         id,
-        label: id,
+        label: id
       }));
 
     const {
@@ -111,7 +112,7 @@ export default class GlobalSearchControl extends Component {
       nodes: nodesTruncated,
       allocs: allocationsTruncated,
       groups: taskGroupsTruncated,
-      plugins: csiPluginsTruncated,
+      plugins: csiPluginsTruncated
     } = results.Truncations;
 
     return [
@@ -122,7 +123,7 @@ export default class GlobalSearchControl extends Component {
           allJobResults,
           jobsTruncated
         ),
-        options: jobResults,
+        options: jobResults
       },
       {
         groupName: resultsGroupLabel(
@@ -131,7 +132,7 @@ export default class GlobalSearchControl extends Component {
           allNodeResults,
           nodesTruncated
         ),
-        options: nodeResults,
+        options: nodeResults
       },
       {
         groupName: resultsGroupLabel(
@@ -140,7 +141,7 @@ export default class GlobalSearchControl extends Component {
           allAllocationResults,
           allocationsTruncated
         ),
-        options: allocationResults,
+        options: allocationResults
       },
       {
         groupName: resultsGroupLabel(
@@ -149,7 +150,7 @@ export default class GlobalSearchControl extends Component {
           allTaskGroupResults,
           taskGroupsTruncated
         ),
-        options: taskGroupResults,
+        options: taskGroupResults
       },
       {
         groupName: resultsGroupLabel(
@@ -158,8 +159,8 @@ export default class GlobalSearchControl extends Component {
           allCSIPluginResults,
           csiPluginsTruncated
         ),
-        options: csiPluginResults,
-      },
+        options: csiPluginResults
+      }
     ];
   })
   search;
@@ -180,13 +181,13 @@ export default class GlobalSearchControl extends Component {
   selectOption(model) {
     if (model.type === 'job') {
       this.router.transitionTo('jobs.job', model.id, {
-        queryParams: { namespace: model.namespace },
+        queryParams: { namespace: model.namespace }
       });
     } else if (model.type === 'node') {
       this.router.transitionTo('clients.client', model.id);
     } else if (model.type === 'task-group') {
       this.router.transitionTo('jobs.job.task-group', model.jobId, model.id, {
-        queryParams: { namespace: model.namespace },
+        queryParams: { namespace: model.namespace }
       });
     } else if (model.type === 'plugin') {
       this.router.transitionTo('csi.plugins.plugin', model.id);
@@ -223,7 +224,7 @@ export default class GlobalSearchControl extends Component {
   @action
   onCloseEvent(select, event) {
     if (event.key === 'Escape') {
-      run.next(() => {
+      next(() => {
         this.element.querySelector('.ember-power-select-trigger').blur();
       });
     }
@@ -235,8 +236,8 @@ export default class GlobalSearchControl extends Component {
       style: {
         left,
         width,
-        top,
-      },
+        top
+      }
     };
   }
 }

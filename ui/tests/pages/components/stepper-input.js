@@ -7,10 +7,10 @@ import {
   isPresent,
   text,
   triggerable,
-  value,
+  value
 } from 'ember-cli-page-object';
 
-export default (scope) => ({
+export default scope => ({
   scope,
 
   label: text('[data-test-stepper-label]'),
@@ -22,8 +22,8 @@ export default (scope) => ({
     focus: focusable(),
     blur: blurrable(),
     value: value(),
-    esc: triggerable('keydown', '', { eventProperties: { keyCode: 27 } }),
-    isDisabled: attribute('disabled'),
+    esc: triggerable('keyup', '', { eventProperties: { keyCode: 27 } }),
+    isDisabled: attribute('disabled')
   },
 
   decrement: {
@@ -31,7 +31,7 @@ export default (scope) => ({
     click: clickable(),
     isPresent: isPresent(),
     isDisabled: attribute('disabled'),
-    classNames: attribute('class'),
+    classNames: attribute('class')
   },
 
   increment: {
@@ -39,6 +39,6 @@ export default (scope) => ({
     click: clickable(),
     isPresent: isPresent(),
     isDisabled: attribute('disabled'),
-    classNames: attribute('class'),
-  },
+    classNames: attribute('class')
+  }
 });

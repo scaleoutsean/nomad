@@ -1,10 +1,12 @@
 import { assign } from '@ember/polyfills';
 import ApplicationSerializer from './application';
 import queryString from 'query-string';
+import classic from 'ember-classic-decorator';
 
+@classic
 export default class JobSerializer extends ApplicationSerializer {
   attrs = {
-    parameterized: 'ParameterizedJob',
+    parameterized: 'ParameterizedJob'
   };
 
   separateNanos = ['SubmitTime'];
@@ -22,7 +24,7 @@ export default class JobSerializer extends ApplicationSerializer {
     } else {
       hash.ParentID = JSON.stringify([
         hash.ParentID,
-        hash.NamespaceID || 'default',
+        hash.NamespaceID || 'default'
       ]);
     }
 
@@ -46,7 +48,7 @@ export default class JobSerializer extends ApplicationSerializer {
     // as a job-summary model.
     if (hash.JobSummary) {
       this.store.pushPayload('job-summary', {
-        'job-summary': [hash.JobSummary],
+        'job-summary': [hash.JobSummary]
       });
     }
 
@@ -72,42 +74,42 @@ export default class JobSerializer extends ApplicationSerializer {
     return assign(super.extractRelationships(...arguments), {
       allocations: {
         links: {
-          related: buildURL(`${jobURL}/allocations`, { namespace }),
-        },
+          related: buildURL(`${jobURL}/allocations`, { namespace })
+        }
       },
       versions: {
         links: {
-          related: buildURL(`${jobURL}/versions`, { namespace, diffs: true }),
-        },
+          related: buildURL(`${jobURL}/versions`, { namespace, diffs: true })
+        }
       },
       deployments: {
         links: {
-          related: buildURL(`${jobURL}/deployments`, { namespace }),
-        },
+          related: buildURL(`${jobURL}/deployments`, { namespace })
+        }
       },
       latestDeployment: {
         links: {
-          related: buildURL(`${jobURL}/deployment`, { namespace }),
-        },
+          related: buildURL(`${jobURL}/deployment`, { namespace })
+        }
       },
       evaluations: {
         links: {
-          related: buildURL(`${jobURL}/evaluations`, { namespace }),
-        },
+          related: buildURL(`${jobURL}/evaluations`, { namespace })
+        }
       },
       scaleState: {
         links: {
-          related: buildURL(`${jobURL}/scale`, { namespace }),
-        },
+          related: buildURL(`${jobURL}/scale`, { namespace })
+        }
       },
       recommendationSummaries: {
         links: {
           related: buildURL(`/${apiNamespace}/recommendations`, {
             job: hash.PlainId,
-            namespace: hash.NamespaceID || 'default',
-          }),
-        },
-      },
+            namespace: hash.NamespaceID || 'default'
+          })
+        }
+      }
     });
   }
 }

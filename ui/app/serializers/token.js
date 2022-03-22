@@ -1,11 +1,13 @@
 import { copy } from 'ember-copy';
 import ApplicationSerializer from './application';
+import classic from 'ember-classic-decorator';
 
+@classic
 export default class TokenSerializer extends ApplicationSerializer {
   primaryKey = 'AccessorID';
 
   attrs = {
-    secret: 'SecretID',
+    secret: 'SecretID'
   };
 
   normalize(typeHash, hash) {

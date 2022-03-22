@@ -1,8 +1,10 @@
 import { computed } from '@ember/object';
 import DistributionBar from './distribution-bar';
+import { attributeBindings } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 
 @classic
+@attributeBindings('data-test-job-client-status-bar')
 export default class JobClientStatusBar extends DistributionBar {
   layoutName = 'components/distribution-bar';
 
@@ -20,7 +22,7 @@ export default class JobClientStatusBar extends DistributionBar {
       degraded,
       failed,
       lost,
-      notScheduled,
+      notScheduled
     } = this.jobClientStatus.byStatus;
 
     return [
@@ -31,9 +33,9 @@ export default class JobClientStatusBar extends DistributionBar {
         legendLink: {
           queryParams: {
             status: JSON.stringify(['queued']),
-            namespace: this.job.namespace.get('id'),
-          },
-        },
+            namespace: this.job.namespace.get('id')
+          }
+        }
       },
       {
         label: 'Starting',
@@ -42,10 +44,10 @@ export default class JobClientStatusBar extends DistributionBar {
         legendLink: {
           queryParams: {
             status: JSON.stringify(['starting']),
-            namespace: this.job.namespace.get('id'),
-          },
+            namespace: this.job.namespace.get('id')
+          }
         },
-        layers: 2,
+        layers: 2
       },
       {
         label: 'Running',
@@ -54,9 +56,9 @@ export default class JobClientStatusBar extends DistributionBar {
         legendLink: {
           queryParams: {
             status: JSON.stringify(['running']),
-            namespace: this.job.namespace.get('id'),
-          },
-        },
+            namespace: this.job.namespace.get('id')
+          }
+        }
       },
       {
         label: 'Complete',
@@ -65,9 +67,9 @@ export default class JobClientStatusBar extends DistributionBar {
         legendLink: {
           queryParams: {
             status: JSON.stringify(['complete']),
-            namespace: this.job.namespace.get('id'),
-          },
-        },
+            namespace: this.job.namespace.get('id')
+          }
+        }
       },
       {
         label: 'Degraded',
@@ -76,10 +78,11 @@ export default class JobClientStatusBar extends DistributionBar {
         legendLink: {
           queryParams: {
             status: JSON.stringify(['degraded']),
-            namespace: this.job.namespace.get('id'),
-          },
+            namespace: this.job.namespace.get('id')
+          }
         },
-        help: 'Some allocations for this job were not successfull or did not run.',
+        help:
+          'Some allocations for this job were not successfull or did not run.'
       },
       {
         label: 'Failed',
@@ -88,9 +91,9 @@ export default class JobClientStatusBar extends DistributionBar {
         legendLink: {
           queryParams: {
             status: JSON.stringify(['failed']),
-            namespace: this.job.namespace.get('id'),
-          },
-        },
+            namespace: this.job.namespace.get('id')
+          }
+        }
       },
       {
         label: 'Lost',
@@ -99,9 +102,9 @@ export default class JobClientStatusBar extends DistributionBar {
         legendLink: {
           queryParams: {
             status: JSON.stringify(['lost']),
-            namespace: this.job.namespace.get('id'),
-          },
-        },
+            namespace: this.job.namespace.get('id')
+          }
+        }
       },
       {
         label: 'Not Scheduled',
@@ -110,11 +113,11 @@ export default class JobClientStatusBar extends DistributionBar {
         legendLink: {
           queryParams: {
             status: JSON.stringify(['notScheduled']),
-            namespace: this.job.namespace.get('id'),
-          },
+            namespace: this.job.namespace.get('id')
+          }
         },
-        help: 'No allocations for this job were scheduled into these clients.',
-      },
+        help: 'No allocations for this job were scheduled into these clients.'
+      }
     ];
   }
 }

@@ -4,12 +4,12 @@ import { attr } from '@ember-data/model';
 import {
   fragmentOwner,
   fragmentArray,
-  fragment,
+  fragment
 } from 'ember-data-model-fragments/attributes';
 import sumAggregation from '../utils/properties/sum-aggregation';
 import classic from 'ember-classic-decorator';
 
-const maybe = (arr) => arr || [];
+const maybe = arr => arr || [];
 
 @classic
 export default class TaskGroup extends Fragment {
@@ -32,7 +32,7 @@ export default class TaskGroup extends Fragment {
   get mergedMeta() {
     return {
       ...this.job.get('meta.raw'),
-      ...this.meta,
+      ...this.meta
     };
   }
 
@@ -41,7 +41,7 @@ export default class TaskGroup extends Fragment {
     return this.tasks.mapBy('driver').uniq();
   }
 
-  @computed('job.allocations.@each.taskGroup', 'name')
+  @computed('job.allocations.{@each.taskGroup,isFulfilled}', 'name')
   get allocations() {
     return maybe(this.get('job.allocations')).filterBy(
       'taskGroupName',
@@ -56,7 +56,7 @@ export default class TaskGroup extends Fragment {
   @computed('tasks.@each.{reservedMemory,reservedMemoryMax}')
   get reservedMemoryMax() {
     return this.get('tasks')
-      .map((t) => t.get('reservedMemoryMax') || t.get('reservedMemory'))
+      .map(t => t.get('reservedMemoryMax') || t.get('reservedMemory'))
       .reduce((sum, count) => sum + count, 0);
   }
 

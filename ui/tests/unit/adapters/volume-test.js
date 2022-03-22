@@ -1,14 +1,14 @@
-import { run } from '@ember/runloop';
+import { next } from '@ember/runloop';
 import { settled } from '@ember/test-helpers';
 import { setupTest } from 'ember-qunit';
 import { module, test } from 'qunit';
 import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
 import { AbortController } from 'fetch';
 
-module('Unit | Adapter | Volume', function (hooks) {
+module('Unit | Adapter | Volume', function(hooks) {
   setupTest(hooks);
 
-  hooks.beforeEach(async function () {
+  hooks.beforeEach(async function() {
     this.store = this.owner.lookup('service:store');
     this.subject = () => this.store.adapterFor('volume');
 
@@ -25,7 +25,7 @@ module('Unit | Adapter | Volume', function (hooks) {
       this.server.create('csi-plugin', 2);
       this.server.create('csi-volume', {
         id: 'volume-1',
-        namespaceId: 'some-namespace',
+        namespaceId: 'some-namespace'
       });
 
       this.server.create('region', { id: 'region-1' });
@@ -46,11 +46,11 @@ module('Unit | Adapter | Volume', function (hooks) {
     };
   });
 
-  hooks.afterEach(function () {
+  hooks.afterEach(function() {
     this.server.shutdown();
   });
 
-  test('The volume endpoint can be queried by type', async function (assert) {
+  test('The volume endpoint can be queried by type', async function(assert) {
     const { pretender } = this.server;
 
     await this.initializeUI();
@@ -65,11 +65,11 @@ module('Unit | Adapter | Volume', function (hooks) {
     await settled();
 
     assert.deepEqual(pretender.handledRequests.mapBy('url'), [
-      '/v1/volumes?type=csi',
+      '/v1/volumes?type=csi'
     ]);
   });
 
-  test('When the volume has a namespace other than default, it is in the URL', async function (assert) {
+  test('When the volume has a namespace other than default, it is in the URL', async function(assert) {
     const { pretender } = this.server;
     const volumeName = 'csi/volume-1';
     const volumeNamespace = 'some-namespace';
@@ -83,11 +83,11 @@ module('Unit | Adapter | Volume', function (hooks) {
     assert.deepEqual(pretender.handledRequests.mapBy('url'), [
       `/v1/volume/${encodeURIComponent(
         volumeName
-      )}?namespace=${volumeNamespace}`,
+      )}?namespace=${volumeNamespace}`
     ]);
   });
 
-  test('query can be watched', async function (assert) {
+  test('query can be watched', async function(assert) {
     await this.initializeUI();
 
     const { pretender } = this.server;
@@ -100,7 +100,7 @@ module('Unit | Adapter | Volume', function (hooks) {
         null,
         {
           reload: true,
-          adapterOptions: { watch: true },
+          adapterOptions: { watch: true }
         }
       );
 
@@ -120,7 +120,7 @@ module('Unit | Adapter | Volume', function (hooks) {
     await settled();
   });
 
-  test('query can be canceled', async function (assert) {
+  test('query can be canceled', async function(assert) {
     await this.initializeUI();
 
     const { pretender } = this.server;
@@ -131,7 +131,7 @@ module('Unit | Adapter | Volume', function (hooks) {
     this.subject()
       .query(this.store, { modelName: 'volume' }, { type: 'csi' }, null, {
         reload: true,
-        adapterOptions: { watch: true, abortController: controller },
+        adapterOptions: { watch: true, abortController: controller }
       })
       .catch(() => {});
 
@@ -139,7 +139,7 @@ module('Unit | Adapter | Volume', function (hooks) {
     assert.equal(xhr.status, 0, 'Request is still pending');
 
     // Schedule the cancelation before waiting
-    run.next(() => {
+    next(() => {
       controller.abort();
     });
 
@@ -147,7 +147,7 @@ module('Unit | Adapter | Volume', function (hooks) {
     assert.ok(xhr.aborted, 'Request was aborted');
   });
 
-  test('query and findAll have distinct watchList entries', async function (assert) {
+  test('query and findAll have distinct watchList entries', async function(assert) {
     await this.initializeUI();
 
     const { pretender } = this.server;
@@ -160,14 +160,14 @@ module('Unit | Adapter | Volume', function (hooks) {
         null,
         {
           reload: true,
-          adapterOptions: { watch: true },
+          adapterOptions: { watch: true }
         }
       );
 
     const findAllRequest = () =>
       this.subject().findAll(null, { modelName: 'volume' }, null, {
         reload: true,
-        adapterOptions: { watch: true },
+        adapterOptions: { watch: true }
       });
 
     request();

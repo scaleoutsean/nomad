@@ -1,6 +1,6 @@
 import Component from '@ember/component';
 import { action } from '@ember/object';
-import { run } from '@ember/runloop';
+import { scheduleOnce } from '@ember/runloop';
 import { classNames } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 
@@ -11,7 +11,7 @@ const FOCUSABLE = [
   'button:not([disabled])',
   'input:not([disabled]):not([type="hidden"])',
   'textarea:not([disabled])',
-  '[tabindex]:not([disabled]):not([tabindex="-1"])',
+  '[tabindex]:not([disabled]):not([tabindex="-1"])'
 ].join(', ');
 
 @classic
@@ -35,7 +35,7 @@ export default class PopoverMenu extends Component {
     super.didReceiveAttrs();
     const dropdown = this.dropdown;
     if (this.isOpen && dropdown) {
-      run.scheduleOnce('afterRender', this, this.repositionDropdown);
+      scheduleOnce('afterRender', this, this.repositionDropdown);
     }
   }
 

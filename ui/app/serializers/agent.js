@@ -1,11 +1,13 @@
 import ApplicationSerializer from './application';
 import AdapterError from '@ember-data/adapter/error';
+import classic from 'ember-classic-decorator';
 
+@classic
 export default class AgentSerializer extends ApplicationSerializer {
   attrs = {
     datacenter: 'dc',
     address: 'Addr',
-    serfPort: 'Port',
+    serfPort: 'Port'
   };
 
   normalize(typeHash, hash) {

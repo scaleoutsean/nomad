@@ -1,9 +1,11 @@
 import { assign } from '@ember/polyfills';
 import ApplicationSerializer from './application';
+import classic from 'ember-classic-decorator';
 
+@classic
 export default class JobVersionSerializer extends ApplicationSerializer {
   attrs = {
-    number: 'Version',
+    number: 'Version'
   };
 
   normalizeFindHasManyResponse(store, modelClass, hash, id, requestType) {
@@ -13,7 +15,7 @@ export default class JobVersionSerializer extends ApplicationSerializer {
         ID: `${version.ID}-${version.Version}`,
         JobID: JSON.stringify([version.ID, version.Namespace || 'default']),
         SubmitTime: Math.floor(version.SubmitTime / 1000000),
-        SubmitTimeNanos: version.SubmitTime % 1000000,
+        SubmitTimeNanos: version.SubmitTime % 1000000
       })
     );
     return super.normalizeFindHasManyResponse(

@@ -10,9 +10,10 @@ import WithNamespaceResetting from 'nomad-ui/mixins/with-namespace-resetting';
 import jobClientStatus from 'nomad-ui/utils/properties/job-client-status';
 import {
   serialize,
-  deserializedQueryParam as selection,
+  deserializedQueryParam as selection
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
+import { inject as service } from '@ember/service';
 
 @classic
 export default class ClientsController extends Controller.extend(
@@ -20,28 +21,30 @@ export default class ClientsController extends Controller.extend(
   Searchable,
   WithNamespaceResetting
 ) {
+  @service store;
+
   queryParams = [
     {
-      currentPage: 'page',
+      currentPage: 'page'
     },
     {
-      searchTerm: 'search',
+      searchTerm: 'search'
     },
     {
-      qpStatus: 'status',
+      qpStatus: 'status'
     },
     {
-      qpDatacenter: 'dc',
+      qpDatacenter: 'dc'
     },
     {
-      qpClientClass: 'clientclass',
+      qpClientClass: 'clientclass'
     },
     {
-      sortProperty: 'sort',
+      sortProperty: 'sort'
     },
     {
-      sortDescending: 'desc',
-    },
+      sortDescending: 'desc'
+    }
   ];
 
   qpStatus = '';
@@ -72,7 +75,7 @@ export default class ClientsController extends Controller.extend(
 
   @computed('allNodes', 'jobClientStatus.byNode')
   get nodes() {
-    return this.allNodes.filter((node) => this.jobClientStatus.byNode[node.id]);
+    return this.allNodes.filter(node => this.jobClientStatus.byNode[node.id]);
   }
 
   @computed
@@ -92,11 +95,11 @@ export default class ClientsController extends Controller.extend(
     const {
       selectionStatus: statuses,
       selectionDatacenter: datacenters,
-      selectionClientClass: clientClasses,
+      selectionClientClass: clientClasses
     } = this;
 
     return this.nodes
-      .filter((node) => {
+      .filter(node => {
         if (
           statuses.length &&
           !statuses.includes(this.jobClientStatus.byNode[node.id])
@@ -112,9 +115,9 @@ export default class ClientsController extends Controller.extend(
 
         return true;
       })
-      .map((node) => {
+      .map(node => {
         const allocations = this.job.allocations.filter(
-          (alloc) => alloc.get('node.id') == node.id
+          alloc => alloc.get('node.id') == node.id
         );
 
         return {
@@ -122,7 +125,7 @@ export default class ClientsController extends Controller.extend(
           jobStatus: this.jobClientStatus.byNode[node.id],
           allocations,
           createTime: eldestCreateTime(allocations),
-          modifyTime: mostRecentModifyTime(allocations),
+          modifyTime: mostRecentModifyTime(allocations)
         };
       });
   }
@@ -137,7 +140,7 @@ export default class ClientsController extends Controller.extend(
       { key: 'complete', label: 'Complete' },
       { key: 'degraded', label: 'Degraded' },
       { key: 'failed', label: 'Failed' },
-      { key: 'lost', label: 'Lost' },
+      { key: 'lost', label: 'Lost' }
     ];
   }
 
@@ -156,7 +159,7 @@ export default class ClientsController extends Controller.extend(
       );
     });
 
-    return datacenters.sort().map((dc) => ({ key: dc, label: dc }));
+    return datacenters.sort().map(dc => ({ key: dc, label: dc }));
   }
 
   @computed('selectionClientClass', 'nodes')
@@ -176,7 +179,7 @@ export default class ClientsController extends Controller.extend(
 
     return clientClasses
       .sort()
-      .map((clientClass) => ({ key: clientClass, label: clientClass }));
+      .map(clientClass => ({ key: clientClass, label: clientClass }));
   }
 
   @action

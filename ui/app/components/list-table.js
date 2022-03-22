@@ -11,10 +11,10 @@ export default class ListTable extends Component {
   @overridable(() => []) source;
 
   // Plan for a future with metadata (e.g., isSelected)
-  @computed('source.[]')
+  @computed('source.{[],isFulfilled}')
   get decoratedSource() {
-    return (this.source || []).map((row) => ({
-      model: row,
+    return (this.source || []).map(row => ({
+      model: row
     }));
   }
 }

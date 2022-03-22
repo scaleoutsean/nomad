@@ -1,11 +1,16 @@
 import Component from '@ember/component';
 import { computed } from '@ember/object';
-import { classNames, tagName } from '@ember-decorators/component';
+import {
+  classNames,
+  tagName,
+  attributeBindings
+} from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 
 @classic
 @tagName('figure')
 @classNames('image-file')
+@attributeBindings('data-test-image-file')
 export default class ImageFile extends Component {
   'data-test-image-file' = true;
 
@@ -27,7 +32,7 @@ export default class ImageFile extends Component {
     const img = event.target;
     this.setProperties({
       width: img.naturalWidth,
-      height: img.naturalHeight,
+      height: img.naturalHeight
     });
   }
 }
