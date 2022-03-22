@@ -172,7 +172,6 @@ jobs:
             gcc-aarch64-linux-gnu \
             gcc-arm-linux-gnueabihf \
             gcc-multilib-arm-linux-gnueabihf
-          sudo apt-get upgrade -y
 
       - name: Set gcc
         run: |
@@ -201,7 +200,7 @@ jobs:
         if: ${{ matrix.goos == 'linux' }}
         uses: hashicorp/actions-packaging-linux@v1
         with:
-          name: ${{ env.PKG_NAME }}-enterprise
+          name: ${{ env.PKG_NAME }}
           description: "Nomad is an easy-to-use, flexible, and performant workload orchestrator that can deploy a mix of microservice, batch, containerized, and non-containerized applications."
           arch: ${{ matrix.goarch }}
           version: ${{ needs.get-product-version.outputs.product-version }}
