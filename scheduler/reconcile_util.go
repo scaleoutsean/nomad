@@ -250,7 +250,10 @@ func (rm *replacementMap) isReconnecting(alloc *structs.Allocation) bool {
 }
 
 func (rm *replacementMap) getOriginal(allocName string) *structs.Allocation {
-	items := rm.entries[allocName]
+	items, ok := rm.entries[allocName]
+	if !ok {
+		return nil
+	}
 
 	if items[0].PreviousAllocation == items[1].ID {
 		return items[1]
@@ -268,7 +271,7 @@ func (rm *replacementMap) getOriginal(allocName string) *structs.Allocation {
 // 3. Those that exist on lost nodes
 // 4. Those that are on nodes that are disconnected, but have not had their ClientState set to unknown
 // 5. Those that have had their ClientState set to unknown, but their node has reconnected.
-func (a allocSet) filterByTainted(taintedNodes map[string]*structs.Node, supportsDisconnectedClients bool, triggeredBy string) (untainted, migrate, lost, disconnecting, reconnecting allocSet) {
+func (a allocSet) filterByTainted(taintedNodes map[string]*structs.Node, supportsDisconnectedClients bool) (untainted, migrate, lost, disconnecting, reconnecting allocSet) {
 	untainted = make(map[string]*structs.Allocation)
 	migrate = make(map[string]*structs.Allocation)
 	lost = make(map[string]*structs.Allocation)

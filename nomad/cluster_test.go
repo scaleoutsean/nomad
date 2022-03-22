@@ -10,13 +10,11 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/stretchr/testify/require"
-	"time"
 )
 
 // TestCluster is a cluster of test serves and clients suitable for integration testing.
 type TestCluster struct {
 	cfg    *TestClusterConfig
-	index  uint64
 	Server *Server
 	//rpcServer *Server
 	//Servers   map[string]*Server
@@ -72,8 +70,8 @@ type TestClusterConfig struct {
 	Trace               bool
 	ServerFns           map[string]func(*Config)
 	ClientFns           map[string]func(*config.Config)
-	ExpectedAllocStates []*ClientAllocState
-	ExpectedEvalStates  []*EvalState
+	ExpectedAllocStates []*ExpectedAllocState
+	ExpectedEvalStates  []*ExpectedEvalState
 }
 
 func NewTestCluster(cfg *TestClusterConfig) (*TestCluster, func() error, error) {
@@ -83,7 +81,6 @@ func NewTestCluster(cfg *TestClusterConfig) (*TestCluster, func() error, error) 
 	}
 
 	cluster := &TestCluster{
-		index: 2,
 		//Servers: make(map[string]*Server, len(cfg.serverFn)),
 		Clients: make(map[string]*client.Client, len(cfg.ClientFns)),
 		cfg:     cfg,
@@ -149,8 +146,6 @@ func (tc *TestCluster) RegisterJob(job *structs.Job) error {
 		return fmt.Errorf("error registering job: index is 0")
 	}
 
-	tc.index = regResp.Index
-
 	return nil
 }
 
@@ -171,10 +166,8 @@ func (tc *TestCluster) FailHeartbeat(clientName string) error {
 	if err != nil {
 		return err
 	}
-
-	tc.index++
-
-	return tc.Server.State().UpdateNodeStatus(structs.MsgTypeTestSetup, tc.index, testClient.NodeID(), structs.NodeStatusDisconnected, time.Now().UnixNano(), &structs.NodeEvent{Message: "down"})
+	return nil
+	//return tc.Server.State().UpdateNodeStatus(structs.MsgTypeTestSetup, tc.index, testClient.NodeID(), structs.NodeStatusDisconnected, time.Now().UnixNano(), &structs.NodeEvent{Message: "down"})
 }
 
 func (tc *TestCluster) ResumeHeartbeat(clientName string) error {
@@ -252,8 +245,6 @@ func (tc *TestCluster) WaitForNodeStatus(clientName, nodeStatus string) (err err
 		return fmt.Errorf("client %s failed to enter %s state", clientName, nodeStatus)
 	}
 
-	tc.index = outNode.ModifyIndex
-
 	return
 }
 
@@ -314,8 +305,6 @@ func (tc *TestCluster) WaitForAllocClientStatusOnServer(allocID, clientStatus st
 		return fmt.Errorf("expected alloc at server with id %s to have status %s but had %s", allocID, clientStatus, outAlloc.ClientStatus)
 	}
 
-	tc.index = outAlloc.ModifyIndex
-
 	return nil
 }
 
@@ -347,42 +336,51 @@ func (tc *TestCluster) WaitForJobEvalByTrigger(job *structs.Job, triggerBy strin
 		return nil, fmt.Errorf("failed to find eval triggered by %s", triggerBy)
 	}
 
-	tc.index = outEval.ModifyIndex
-
 	return outEval, nil
 }
 
-func (tc *TestCluster) AsExpected(job *structs.Job) error {
+func (tc *TestCluster) WaitForAsExpected(job *structs.Job) error {
 	var mErr *multierror.Error
 
-	for _, clientState := range tc.cfg.ExpectedAllocStates {
-		testClient, ok := tc.Clients[clientState.clientName]
-		if !ok || testClient == nil {
-			mErr = multierror.Append(mErr, fmt.Errorf("error validating client state: invalid client name %s", clientState.clientName))
-			continue
+	testutil.WaitForResult(func() (bool, error) {
+		mErr = nil
+		for _, clientState := range tc.cfg.ExpectedAllocStates {
+			testClient, ok := tc.Clients[clientState.clientName]
+			if !ok || testClient == nil {
+				mErr = multierror.Append(mErr, fmt.Errorf("error validating client state: invalid client name %s", clientState.clientName))
+				continue
+			}
+
+			if err := clientState.AsExpected(tc, testClient.NodeID()); err != nil {
+				mErr = multierror.Append(mErr, fmt.Errorf("error validating client state for %s: \n\t%s", clientState.clientName, err))
+			}
 		}
 
-		if err := clientState.AsExpected(tc.cfg.T, tc.Server, testClient.NodeID()); err != nil {
-			mErr = multierror.Append(mErr, fmt.Errorf("error validating client state for %s: \n\t%s", clientState.clientName, err))
+		for _, evalState := range tc.cfg.ExpectedEvalStates {
+			if err := evalState.AsExpected(tc, job); err != nil {
+				mErr = multierror.Append(mErr, err)
+			}
 		}
-	}
 
-	for _, evalState := range tc.cfg.ExpectedEvalStates {
-		if err := evalState.AsExpected(tc.Server, job); err != nil {
-			mErr = multierror.Append(mErr, err)
+		expErr := mErr.ErrorOrNil()
+		if expErr != nil {
+			return false, nil
 		}
-	}
+		return true, nil
+	}, func(err error) {
+		require.NoError(tc.cfg.T, err, "error retrieving evaluations %s", err)
+	})
 
 	return mErr.ErrorOrNil()
 }
 
-type EvalState struct {
+type ExpectedEvalState struct {
 	TriggerBy string
 	Count     int
 }
 
-func (es *EvalState) AsExpected(server *Server, job *structs.Job) error {
-	evals, err := server.State().EvalsByJob(nil, job.Namespace, job.ID)
+func (es *ExpectedEvalState) AsExpected(tc *TestCluster, job *structs.Job) error {
+	evals, err := tc.Server.State().EvalsByJob(nil, job.Namespace, job.ID)
 	if err != nil {
 		return err
 	}
@@ -400,7 +398,7 @@ func (es *EvalState) AsExpected(server *Server, job *structs.Job) error {
 	return nil
 }
 
-type ClientAllocState struct {
+type ExpectedAllocState struct {
 	clientName string
 	failed     int
 	running    int
@@ -408,11 +406,11 @@ type ClientAllocState struct {
 	stop       int
 }
 
-func (ecs *ClientAllocState) AsExpected(t *testing.T, server *Server, nodeID string) error {
+func (ecs *ExpectedAllocState) AsExpected(tc *TestCluster, nodeID string) error {
 	var err error
 	var allocs []*structs.Allocation
 	testutil.WaitForResult(func() (bool, error) {
-		allocs, err = server.State().AllocsByNode(nil, nodeID)
+		allocs, err = tc.Server.State().AllocsByNode(nil, nodeID)
 		if err != nil {
 			return false, err
 		}
@@ -421,10 +419,10 @@ func (ecs *ClientAllocState) AsExpected(t *testing.T, server *Server, nodeID str
 		}
 		return true, nil
 	}, func(err error) {
-		require.NoError(t, err, "error retrieving allocs for %s - %s", ecs.clientName, err)
+		require.NoError(tc.cfg.T, err, "error retrieving allocs for %s - %s", ecs.clientName, err)
 	})
 
-	require.NotEqual(t, 0, len(allocs))
+	require.NotEqual(tc.cfg.T, 0, len(allocs))
 
 	failed := 0
 	running := 0
@@ -439,8 +437,7 @@ func (ecs *ClientAllocState) AsExpected(t *testing.T, server *Server, nodeID str
 			running++
 		case structs.AllocClientStatusPending:
 			pending++
-		}
-		if alloc.DesiredStatus == structs.AllocDesiredStatusStop {
+		case structs.AllocClientStatusComplete:
 			stop++
 		}
 	}

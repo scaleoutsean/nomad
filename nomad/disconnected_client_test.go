@@ -63,7 +63,7 @@ func reconnectFailedAllocTestConfig(t *testing.T) *TestClusterConfig {
 				c.DevMode = true
 			},
 		},
-		ExpectedAllocStates: []*ClientAllocState{
+		ExpectedAllocStates: []*ExpectedAllocState{
 			{
 				clientName: "client1",
 				failed:     1,
@@ -79,7 +79,7 @@ func reconnectFailedAllocTestConfig(t *testing.T) *TestClusterConfig {
 				stop:       0,
 			},
 		},
-		ExpectedEvalStates: []*EvalState{
+		ExpectedEvalStates: []*ExpectedEvalState{
 			{
 				TriggerBy: structs.EvalTriggerReconnect,
 				Count:     1,
@@ -113,7 +113,7 @@ func reconnectRunningAllocTestConfig(t *testing.T) *TestClusterConfig {
 				c.DevMode = true
 			},
 		},
-		ExpectedAllocStates: []*ClientAllocState{
+		ExpectedAllocStates: []*ExpectedAllocState{
 			{
 				clientName: "client1",
 				failed:     0,
@@ -129,7 +129,7 @@ func reconnectRunningAllocTestConfig(t *testing.T) *TestClusterConfig {
 				stop:       1,
 			},
 		},
-		ExpectedEvalStates: []*EvalState{
+		ExpectedEvalStates: []*ExpectedEvalState{
 			{
 				TriggerBy: structs.EvalTriggerNodeUpdate,
 				Count:     3,
@@ -167,7 +167,7 @@ func reconnectPendingAllocTestConfig(t *testing.T) *TestClusterConfig {
 				c.DevMode = true
 			},
 		},
-		ExpectedAllocStates: []*ClientAllocState{
+		ExpectedAllocStates: []*ExpectedAllocState{
 			{
 				clientName: "client1",
 				failed:     0,
@@ -183,7 +183,7 @@ func reconnectPendingAllocTestConfig(t *testing.T) *TestClusterConfig {
 				stop:       2,
 			},
 		},
-		ExpectedEvalStates: []*EvalState{
+		ExpectedEvalStates: []*ExpectedEvalState{
 			{
 				TriggerBy: structs.EvalTriggerReconnect,
 				Count:     1,

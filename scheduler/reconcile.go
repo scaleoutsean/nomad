@@ -75,9 +75,8 @@ type allocReconciler struct {
 
 	// evalID, evalPriority, evalTriggeredBy are the ID, Priority, and event type
 	// of the evaluation that triggered the reconciler.
-	evalID          string
-	evalPriority    int
-	evalTriggeredBy string
+	evalID       string
+	evalPriority int
 
 	// supportsDisconnectedClients indicates whether all servers meet the required
 	// minimum version to allow application of max_client_disconnect configuration.
@@ -176,7 +175,7 @@ func (r *reconcileResults) Changes() int {
 func NewAllocReconciler(logger log.Logger, allocUpdateFn allocUpdateType, batch bool,
 	jobID string, job *structs.Job, deployment *structs.Deployment,
 	existingAllocs []*structs.Allocation, taintedNodes map[string]*structs.Node, evalID string,
-	evalPriority int, evalTriggeredBy string, supportsDisconnectedClients bool) *allocReconciler {
+	evalPriority int, supportsDisconnectedClients bool) *allocReconciler {
 	return &allocReconciler{
 		logger:                      logger.Named("reconciler"),
 		allocUpdateFn:               allocUpdateFn,
@@ -188,7 +187,6 @@ func NewAllocReconciler(logger log.Logger, allocUpdateFn allocUpdateType, batch 
 		taintedNodes:                taintedNodes,
 		evalID:                      evalID,
 		evalPriority:                evalPriority,
-		evalTriggeredBy:             evalTriggeredBy,
 		supportsDisconnectedClients: supportsDisconnectedClients,
 		now:                         time.Now(),
 		result: &reconcileResults{
@@ -346,7 +344,7 @@ func (a *allocReconciler) handleStop(m allocMatrix) {
 // filterAndStopAll stops all allocations in an allocSet. This is useful in when
 // stopping an entire job or task group.
 func (a *allocReconciler) filterAndStopAll(set allocSet) uint64 {
-	untainted, migrate, lost, disconnecting, reconnecting := set.filterByTainted(a.taintedNodes, a.supportsDisconnectedClients, a.evalTriggeredBy)
+	untainted, migrate, lost, disconnecting, reconnecting := set.filterByTainted(a.taintedNodes, a.supportsDisconnectedClients)
 	a.markStop(untainted, "", allocNotNeeded)
 	a.markStop(migrate, "", allocNotNeeded)
 	a.markStop(lost, structs.AllocClientStatusLost, allocLost)
@@ -412,7 +410,7 @@ func (a *allocReconciler) computeGroup(groupName string, all allocSet) bool {
 	}
 
 	// Determine what set of allocations are on tainted nodes
-	untainted, migrate, lost, disconnecting, reconnecting := all.filterByTainted(a.taintedNodes, a.supportsDisconnectedClients, a.evalTriggeredBy)
+	untainted, migrate, lost, disconnecting, reconnecting := all.filterByTainted(a.taintedNodes, a.supportsDisconnectedClients)
 
 	a.logger.Trace("disconnecting: %d", len(disconnecting))
 	a.logger.Trace("reconnecting: %d", len(reconnecting))
@@ -422,7 +420,7 @@ func (a *allocReconciler) computeGroup(groupName string, all allocSet) bool {
 
 	// Find delays for any lost allocs that have stop_after_client_disconnect
 	lostLater := lost.delayByStopAfterClientDisconnect()
-	lostLaterEvals := a.createLostLaterEvals(lostLater, all, tg.Name)
+	lostLaterEvals := a.createLostLaterEvals(lostLater, tg.Name)
 
 	// Find delays for any disconnecting allocs that have max_client_reconnect,
 	// create followup evals, and update the ClientStatus to unknown.
@@ -619,7 +617,7 @@ func (a *allocReconciler) cancelUnneededCanaries(all allocSet, desiredChanges *s
 		}
 
 		canaries = all.fromKeys(canaryIDs)
-		untainted, migrate, lost, _, _ := canaries.filterByTainted(a.taintedNodes, a.supportsDisconnectedClients, a.evalTriggeredBy)
+		untainted, migrate, lost, _, _ := canaries.filterByTainted(a.taintedNodes, a.supportsDisconnectedClients)
 		a.markStop(migrate, "", allocMigrating)
 		a.markStop(lost, structs.AllocClientStatusLost, allocLost)
 
@@ -1153,7 +1151,7 @@ func (a *allocReconciler) computeUpdates(group *structs.TaskGroup, untainted all
 // the followupEvalID
 func (a *allocReconciler) createRescheduleLaterEvals(rescheduleLater []*delayedRescheduleInfo, all allocSet, tgName string) {
 	// followupEvals are created in the same way as for delayed lost allocs
-	allocIDToFollowupEvalID := a.createLostLaterEvals(rescheduleLater, all, tgName)
+	allocIDToFollowupEvalID := a.createLostLaterEvals(rescheduleLater, tgName)
 
 	// Create updates that will be applied to the allocs to mark the FollowupEvalID
 	for allocID, evalID := range allocIDToFollowupEvalID {
@@ -1193,7 +1191,7 @@ func (a *allocReconciler) computeReconnecting(reconnecting allocSet) {
 // handleDelayedLost creates batched followup evaluations with the WaitUntil field set for
 // lost allocations. followupEvals are appended to a.result as a side effect, we return a
 // map of alloc IDs to their followupEval IDs.
-func (a *allocReconciler) createLostLaterEvals(rescheduleLater []*delayedRescheduleInfo, all allocSet, tgName string) map[string]string {
+func (a *allocReconciler) createLostLaterEvals(rescheduleLater []*delayedRescheduleInfo, tgName string) map[string]string {
 	if len(rescheduleLater) == 0 {
 		return map[string]string{}
 	}

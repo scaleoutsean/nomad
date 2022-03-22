@@ -381,7 +381,7 @@ func (s *GenericScheduler) computeJobAllocs() error {
 	reconciler := NewAllocReconciler(s.logger,
 		genericAllocUpdateFn(s.ctx, s.stack, s.eval.ID),
 		s.batch, s.eval.JobID, s.job, s.deployment, allocs, tainted, s.eval.ID,
-		s.eval.Priority, s.eval.TriggeredBy, s.planner.ServersMeetMinimumVersion(minVersionMaxClientDisconnect, true))
+		s.eval.Priority, s.planner.ServersMeetMinimumVersion(minVersionMaxClientDisconnect, true))
 
 	results := reconciler.Compute()
 	s.logger.Debug("reconciled current state with desired state", "results", log.Fmt("%#v", results))

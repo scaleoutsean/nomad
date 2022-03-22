@@ -3896,7 +3896,7 @@ func TestClientEndpoint_UpdateAlloc_Reconnect(t *testing.T) {
 				err = cluster.WaitForAllocClientStatusOnServer(alloc.ID, structs.AllocClientStatusRunning)
 			}
 
-			err = cluster.AsExpected(job)
+			err = cluster.WaitForAsExpected(job)
 			require.NoError(t, err)
 		})
 	}
