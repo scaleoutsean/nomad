@@ -10,11 +10,13 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/stretchr/testify/require"
+	"time"
 )
 
 // TestCluster is a cluster of test serves and clients suitable for integration testing.
 type TestCluster struct {
 	cfg    *TestClusterConfig
+	index  uint64
 	Server *Server
 	//rpcServer *Server
 	//Servers   map[string]*Server
@@ -81,6 +83,7 @@ func NewTestCluster(cfg *TestClusterConfig) (*TestCluster, func() error, error) 
 	}
 
 	cluster := &TestCluster{
+		index: 2,
 		//Servers: make(map[string]*Server, len(cfg.serverFn)),
 		Clients: make(map[string]*client.Client, len(cfg.ClientFns)),
 		cfg:     cfg,
@@ -146,6 +149,8 @@ func (tc *TestCluster) RegisterJob(job *structs.Job) error {
 		return fmt.Errorf("error registering job: index is 0")
 	}
 
+	tc.index = regResp.Index
+
 	return nil
 }
 
@@ -162,7 +167,14 @@ func (tc *TestCluster) FailHeartbeat(clientName string) error {
 	if !ok {
 		return fmt.Errorf("error failing hearbeat: client %s not found", clientName)
 	}
-	return client.FailHeartbeat(testClient)
+	err := client.FailHeartbeat(testClient)
+	if err != nil {
+		return err
+	}
+
+	tc.index++
+
+	return tc.Server.State().UpdateNodeStatus(structs.MsgTypeTestSetup, tc.index, testClient.NodeID(), structs.NodeStatusDisconnected, time.Now().UnixNano(), &structs.NodeEvent{Message: "down"})
 }
 
 func (tc *TestCluster) ResumeHeartbeat(clientName string) error {
@@ -221,13 +233,15 @@ func (tc *TestCluster) WaitForNodeStatus(clientName, nodeStatus string) (err err
 	}
 
 	clientReady := false
+	var nodeErr error
+	var outNode *structs.Node
 	testutil.WaitForResult(func() (bool, error) {
-		clientNode, nodeErr := tc.Server.State().NodeByID(nil, testClient.Node().ID)
+		outNode, nodeErr = tc.Server.State().NodeByID(nil, testClient.Node().ID)
 		if nodeErr != nil {
 			return false, nodeErr
 		}
-		if clientNode != nil {
-			clientReady = clientNode.Status == nodeStatus
+		if outNode != nil {
+			clientReady = outNode.Status == nodeStatus
 		}
 		return clientReady, nil
 	}, func(waitErr error) {
@@ -237,6 +251,8 @@ func (tc *TestCluster) WaitForNodeStatus(clientName, nodeStatus string) (err err
 	if !clientReady {
 		return fmt.Errorf("client %s failed to enter %s state", clientName, nodeStatus)
 	}
+
+	tc.index = outNode.ModifyIndex
 
 	return
 }
@@ -298,6 +314,8 @@ func (tc *TestCluster) WaitForAllocClientStatusOnServer(allocID, clientStatus st
 		return fmt.Errorf("expected alloc at server with id %s to have status %s but had %s", allocID, clientStatus, outAlloc.ClientStatus)
 	}
 
+	tc.index = outAlloc.ModifyIndex
+
 	return nil
 }
 
@@ -328,6 +346,8 @@ func (tc *TestCluster) WaitForJobEvalByTrigger(job *structs.Job, triggerBy strin
 	if outEval == nil {
 		return nil, fmt.Errorf("failed to find eval triggered by %s", triggerBy)
 	}
+
+	tc.index = outEval.ModifyIndex
 
 	return outEval, nil
 }
