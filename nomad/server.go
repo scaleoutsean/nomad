@@ -1299,6 +1299,28 @@ func (s *Server) setupRaft() error {
 		stable = store
 		s.logger.Info("setting up raft bolt store", "no_freelist_sync", s.config.RaftBoltNoFreelistSync)
 
+		raftVersion := s.config.RaftConfig.ProtocolVersion
+		raftVersionFile := filepath.Join(path, "version")
+		if _, err := os.Stat(raftVersionFile); err == nil {
+			v, err := ioutil.ReadFile(raftVersionFile)
+			if err != nil {
+				return fmt.Errorf("failed to read raft version file: %v", err)
+			}
+
+			previousVersion, err := strconv.Atoi(string(v))
+			if err != nil {
+				return fmt.Errorf("failed to read raft version file: %v", err)
+			}
+			if raft.ProtocolVersion(previousVersion) > raftVersion {
+				return fmt.Errorf("downgrading raft is not supported, current version is %d, previous version was %d", raftVersion, previousVersion)
+			}
+		}
+		if err := ioutil.WriteFile(raftVersionFile, []byte(fmt.Sprintf("%d", raftVersion)), 0644); err != nil {
+			if err != nil {
+				return fmt.Errorf("failed to write raft version file: %v", err)
+			}
+		}
+
 		// Start publishing bboltdb metrics
 		go store.RunMetrics(s.shutdownCtx, 0)
 
